@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.11](https://github.com/keys-i/koelu/compare/v0.6.10...v0.6.11) (2026-09-27)
+
+- Fix orchestration startup by verifying the public Koelu App through GitHub's anonymous App lookup
+- Write `.github/koelu.toml` during setup while continuing to read existing JSON configuration during migration
+
 ## [0.6.10](https://github.com/keys-i/koelu/compare/v0.6.9...v0.6.10) (2026-09-27)
 
 - Prepare the repository move to `keys-i/koelu` and accept that name as the trusted solver source
