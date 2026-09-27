@@ -35,6 +35,8 @@ koelu setup --repo owner/repo --check test --accept-terms
 
 The Koelu service agreement uses Terms `2026-09-27-t4` and Privacy `2026-09-27-p4`. Earlier receipts do not cover this version. Setup records a new, closed consent issue and updates the repository's public configuration. `koelu dependasolve --repo owner/repo --check test --apply --accept-terms` is the scriptable equivalent; it configures the repository but does not run a review immediately.
 
+For automatic Cargo Dependabot repair, update to a version containing the `--autofix` option and rerun `koelu setup --repo owner/repo --check test --autofix --accept-terms`. This records the new `t5`/`p5` agreement and pins the current trusted solver source. Existing `t4`/`p4` receipts keep reviews and individually approved writes running. Review and commit the new `.github/koelu.toml` before expecting replacement pull requests.
+
 After the repository becomes `keys-i/koelu`, use Koelu 0.6.10 or newer for setup. Koelu 0.6.9 still requires the previous trusted repository name.
 
 ## What stays the same

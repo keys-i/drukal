@@ -17,6 +17,7 @@ pub(super) struct CentralTarget {
     pub(super) number: u64,
     pub(super) checks: Vec<String>,
     pub(super) solver_ref: String,
+    pub(super) autofix: bool,
 }
 
 pub(super) fn central_targets<F>(arguments: &ServeArgs, token: &str, select: &mut F) -> Result<()>
@@ -146,6 +147,7 @@ where
                 number,
                 checks: checks.clone(),
                 solver_ref: solver_ref.clone(),
+                autofix: setup::autofix_enabled(&configuration),
             });
         }
     }

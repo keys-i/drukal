@@ -10,12 +10,16 @@ use serde_json::json;
 
 use crate::Result;
 use crate::agent::{self, Harness};
+use crate::delivery::quality::{AcceptanceCheck, Plan, Task};
+use crate::delivery::{self, Config, DeliveryAuth};
 use crate::github::GitHub;
 use crate::reviews;
 use crate::reviews::repair;
 use crate::ui::{OutputMode, Theme, Ui};
 
-use super::{AgentArgs, DoctorArgs, PrepareRepairArgs, ResolveArgs, RespondArgs, ReviewArgs};
+use super::{
+    AgentArgs, AutoRepairArgs, DoctorArgs, PrepareRepairArgs, ResolveArgs, RespondArgs, ReviewArgs,
+};
 
 pub(super) fn doctor(arguments: DoctorArgs, theme: Theme, output: OutputMode) -> Result<()> {
     let mut ui = Ui::new(theme, output, 3);
@@ -176,6 +180,111 @@ pub(super) fn prepare_repair(arguments: PrepareRepairArgs) -> Result<()> {
         &arguments.expected_base,
         &arguments.output,
     )
+}
+
+pub(super) fn auto_repair(arguments: AutoRepairArgs) -> Result<()> {
+    if arguments.pr == 0 {
+        bail!("PR number must be positive");
+    }
+    let token = env::var("GH_TOKEN").unwrap_or_default();
+    let github = GitHub::new(&arguments.repo, &token)?;
+    let candidate = reviews::autofix::candidate(
+        &github,
+        arguments.pr,
+        &arguments.expected_head,
+        &arguments.expected_base,
+    )?;
+    if arguments.probe {
+        return action_output(&[("needed", candidate.is_some().to_string())]);
+    }
+    let Some(candidate) = candidate else {
+        println!("No eligible Dependabot repair is needed");
+        return Ok(());
+    };
+    let directory = arguments
+        .directory
+        .ok_or_else(|| anyhow!("--directory is required for automatic repair"))?;
+    let acceptance = "The Dependabot update is preserved and the Rust checks pass".to_owned();
+    let check = "cargo test --all-targets --no-fail-fast --locked".to_owned();
+    let plan = Plan {
+        acceptance: vec![acceptance],
+        scope: candidate.scope.clone(),
+        limitations: vec![
+            format!(
+                "Source: {} PR #{} at {}",
+                arguments.repo, arguments.pr, arguments.expected_head
+            ),
+            "A maintainer reviews and merges the replacement PR".to_owned(),
+        ],
+        performance_required: false,
+        model_index: None,
+        tasks: vec![Task {
+            description:
+                "Repair the verified Dependabot update and its failing test or merge conflict"
+                    .to_owned(),
+            scope: candidate.scope,
+            acceptance: vec![0],
+            depends_on: Vec::new(),
+            model_index: None,
+        }],
+    };
+    let config = Config {
+        task: candidate.task,
+        directory,
+        repo: Some(arguments.repo.clone()),
+        checks: vec![
+            "cargo fmt --check".to_owned(),
+            "cargo clippy --all-targets --all-features --locked -- -D warnings".to_owned(),
+            check.clone(),
+            "cargo build --release --locked".to_owned(),
+        ],
+        harness: Harness::Command,
+        agents: 1,
+        model: env::var("KOELU_MODEL")
+            .ok()
+            .filter(|model| !model.is_empty()),
+        model_choices: Vec::new(),
+        review_model: None,
+        plan: Some(plan),
+        acceptance_checks: vec![AcceptanceCheck {
+            criterion: 0,
+            command: check,
+            expected_exit: 0,
+            expected_output: Some(String::new()),
+            files: Vec::new(),
+        }],
+        max_tokens: None,
+        orchestrator_model: None,
+        orchestrator_harness: None,
+        base: Some(candidate.base_ref),
+        attempts: 2,
+        timeout: Duration::from_secs(30 * 60),
+        benchmarks: Vec::new(),
+        benchmark_runs: 1,
+        benchmark_warmups: 0,
+        benchmark_metric: None,
+        max_benchmark_noise: 10.0,
+        max_regression: 5.0,
+        max_files: 20,
+        max_lines: 1_000,
+        theme: Theme::Plain,
+        output: OutputMode::Json,
+        seed_patch: None,
+        resumed_from: None,
+        expected_start: Some(candidate.base_sha),
+        mcp_servers: Vec::new(),
+        ghost: false,
+    };
+    let auth = DeliveryAuth::repair_installation(
+        &arguments.repo,
+        token,
+        arguments.pr,
+        &arguments.expected_head,
+        &arguments.expected_base,
+    )?;
+    let state = delivery::deliver_hosted(config, auth)?;
+    println!("{}", serde_json::to_string(&state)?);
+    Ok(())
 }
 
 fn action_output(values: &[(&str, String)]) -> Result<()> {

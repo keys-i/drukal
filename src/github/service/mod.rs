@@ -288,6 +288,7 @@ mod tests {
             number: 7,
             checks: vec!["test".to_owned()],
             solver_ref: "keys-i/koelu@0123456789abcdef0123456789abcdef01234567".to_owned(),
+            autofix: false,
         };
         assert_eq!(
             serde_json::json!({"include": [target]}),
@@ -295,7 +296,8 @@ mod tests {
                 "include": [{
                     "repo": "keys-i/koelu", "owner": "keys-i", "name": "koelu",
                     "private": false, "number": 7, "checks": ["test"],
-                    "solver_ref": "keys-i/koelu@0123456789abcdef0123456789abcdef01234567"
+                    "solver_ref": "keys-i/koelu@0123456789abcdef0123456789abcdef01234567",
+                    "autofix": false
                 }]
             })
         );
@@ -309,6 +311,7 @@ mod tests {
                 number,
                 checks: vec!["test".to_owned()],
                 solver_ref: "keys-i/koelu@0123456789abcdef0123456789abcdef01234567".to_owned(),
+                autofix: false,
             })
             .collect::<Vec<_>>();
         let choose = |seed| {

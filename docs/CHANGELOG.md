@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add an administrator opt-in for checked replacement pull requests when a signed Cargo Dependabot update has a merge conflict or failed required check
+- Keep existing `t4`/`p4` installations on reviews and individually approved writes until an administrator accepts `t5`/`p5` and enables automatic repair
+
 ## [0.6.11](https://github.com/keys-i/koelu/compare/v0.6.10...v0.6.11) (2026-09-27)
 
 - Fix orchestration startup by verifying the public Koelu App through GitHub's anonymous App lookup

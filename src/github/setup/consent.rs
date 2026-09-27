@@ -6,11 +6,13 @@ use serde_json::{Value, json};
 use crate::Result;
 use crate::github;
 
-pub(super) const TERMS_VERSION: &str = "2026-09-27-t4";
-pub(super) const PRIVACY_VERSION: &str = "2026-09-27-p4";
+pub(super) const TERMS_VERSION: &str = "2026-09-27-t5";
+pub(super) const PRIVACY_VERSION: &str = "2026-09-27-p5";
+const PREVIOUS_TERMS_VERSION: &str = "2026-09-27-t4";
+const PREVIOUS_PRIVACY_VERSION: &str = "2026-09-27-p4";
 const CONSENT_ISSUE_TITLE: &str = "Koelu service agreement";
 
-pub(super) fn agreement(repo: &str) -> Result<Value> {
+pub(super) fn agreement(repo: &str, autofix: bool) -> Result<Value> {
     let user = github::api("user", None, "GET", false)?
         .ok_or_else(|| anyhow!("GitHub returned no authenticated user"))?;
     let accepted_by = user["login"]
@@ -21,10 +23,11 @@ pub(super) fn agreement(repo: &str) -> Result<Value> {
         .duration_since(UNIX_EPOCH)
         .context("system clock is before the Unix epoch")?
         .as_secs();
-    let receipt = create_consent_receipt(repo, accepted_by)?;
+    let receipt = create_consent_receipt(repo, accepted_by, autofix)?;
     Ok(json!({
         "terms": TERMS_VERSION,
         "privacy": PRIVACY_VERSION,
+        "autofix": autofix,
         "accepted_by": accepted_by,
         "accepted_at_unix": accepted_at,
         "issue": receipt.issue,
@@ -38,13 +41,22 @@ struct ConsentReceipt {
     comment: u64,
 }
 
-fn consent_comment(repo: &str) -> String {
+fn consent_comment(repo: &str, autofix: Option<bool>) -> String {
+    let (terms, privacy) = if autofix.is_some() {
+        (TERMS_VERSION, PRIVACY_VERSION)
+    } else {
+        (PREVIOUS_TERMS_VERSION, PREVIOUS_PRIVACY_VERSION)
+    };
     format!(
-        "Koelu service agreement acceptance\n\nI accept the Koelu Terms of Use ({TERMS_VERSION}) and Privacy Policy ({PRIVACY_VERSION}) for {repo}."
+        "Koelu service agreement acceptance\n\nI accept the Koelu Terms of Use ({terms}) and Privacy Policy ({privacy}) for {repo}.{}",
+        autofix.map_or(String::new(), |enabled| format!(
+            "\n\nAutomatic Dependabot repair: {}.",
+            if enabled { "enabled" } else { "disabled" }
+        ))
     )
 }
 
-fn create_consent_receipt(repo: &str, accepted_by: &str) -> Result<ConsentReceipt> {
+fn create_consent_receipt(repo: &str, accepted_by: &str, autofix: bool) -> Result<ConsentReceipt> {
     let issue = github::api(
         &format!("repos/{repo}/issues"),
         Some(&json!({
@@ -61,7 +73,7 @@ fn create_consent_receipt(repo: &str, accepted_by: &str) -> Result<ConsentReceip
         .ok_or_else(|| anyhow!("GitHub returned an invalid consent issue"))?;
     let comment = github::api(
         &format!("repos/{repo}/issues/{number}/comments"),
-        Some(&json!({"body": consent_comment(repo)})),
+        Some(&json!({"body": consent_comment(repo, Some(autofix))})),
         "POST",
         false,
     )?
@@ -84,8 +96,12 @@ fn create_consent_receipt(repo: &str, accepted_by: &str) -> Result<ConsentReceip
 
 pub(crate) fn accepted_configuration(value: &Value) -> bool {
     value["schema"].as_u64() == Some(1)
-        && value["agreement"]["terms"].as_str() == Some(TERMS_VERSION)
-        && value["agreement"]["privacy"].as_str() == Some(PRIVACY_VERSION)
+        && (current_agreement(value)
+            || (value["agreement"]["terms"].as_str() == Some(PREVIOUS_TERMS_VERSION)
+                && value["agreement"]["privacy"].as_str() == Some(PREVIOUS_PRIVACY_VERSION)))
+        && (!current_agreement(value)
+            || (value["autofix"].as_bool().is_some()
+                && value["agreement"]["autofix"].as_bool().is_some()))
         && value["agreement"]["accepted_by"]
             .as_str()
             .is_some_and(valid_login)
@@ -98,6 +114,15 @@ pub(crate) fn accepted_configuration(value: &Value) -> bool {
         && value["agreement"]["comment"]
             .as_u64()
             .is_some_and(|number| number > 0)
+}
+
+pub(crate) fn current_agreement(value: &Value) -> bool {
+    value["agreement"]["terms"].as_str() == Some(TERMS_VERSION)
+        && value["agreement"]["privacy"].as_str() == Some(PRIVACY_VERSION)
+}
+
+pub(crate) fn agreement_covers(value: &Value, autofix: bool) -> bool {
+    current_agreement(value) && (!autofix || value["agreement"]["autofix"] == true)
 }
 
 pub(crate) fn verified_configuration(github: &github::GitHub, value: &Value) -> Result<bool> {
@@ -124,16 +149,20 @@ pub(crate) fn verified_configuration(github: &github::GitHub, value: &Value) -> 
     Ok(receipt_matches(
         github.repo(),
         accepted_by,
-        issue,
-        comment,
+        (issue, comment),
         issue_value.as_ref(),
         comment_value.as_ref(),
         permission.as_ref(),
+        &consent_comment(
+            github.repo(),
+            current_agreement(value)
+                .then(|| value["agreement"]["autofix"].as_bool().unwrap_or(false)),
+        ),
     ))
 }
 
 pub(super) fn verified_existing_configuration(repo: &str, value: &Value) -> Result<bool> {
-    if !accepted_configuration(value) {
+    if !accepted_configuration(value) || !current_agreement(value) {
         return Ok(false);
     }
     let agreement = &value["agreement"];
@@ -162,23 +191,28 @@ pub(super) fn verified_existing_configuration(repo: &str, value: &Value) -> Resu
     Ok(receipt_matches(
         repo,
         accepted_by,
-        issue,
-        comment,
+        (issue, comment),
         issue_value.as_ref(),
         comment_value.as_ref(),
         permission.as_ref(),
+        &consent_comment(
+            repo,
+            current_agreement(value)
+                .then(|| value["agreement"]["autofix"].as_bool().unwrap_or(false)),
+        ),
     ))
 }
 
 fn receipt_matches(
     repo: &str,
     accepted_by: &str,
-    issue: u64,
-    comment: u64,
+    receipt: (u64, u64),
     issue_value: Option<&Value>,
     comment_value: Option<&Value>,
     permission: Option<&Value>,
+    expected_comment: &str,
 ) -> bool {
+    let (issue, comment) = receipt;
     let issue_url = format!("https://github.com/{repo}/issues/{issue}");
     let comment_issue_url = format!("https://api.github.com/repos/{repo}/issues/{issue}");
     issue_value.is_some_and(|value| {
@@ -191,7 +225,7 @@ fn receipt_matches(
         value["id"].as_u64() == Some(comment)
             && value["issue_url"].as_str() == Some(&comment_issue_url)
             && value["user"]["login"].as_str() == Some(accepted_by)
-            && value["body"].as_str() == Some(&consent_comment(repo))
+            && value["body"].as_str() == Some(expected_comment)
     }) && permission.is_some_and(|value| value["permission"].as_str() == Some("admin"))
 }
 
@@ -213,9 +247,25 @@ mod tests {
             (
                 json!({
                     "schema": 1,
+                    "autofix": false,
                     "agreement": {
                         "terms": TERMS_VERSION,
                         "privacy": PRIVACY_VERSION,
+                        "autofix": false,
+                        "accepted_by": "keys-i",
+                        "accepted_at_unix": 1,
+                        "issue": 1,
+                        "comment": 2,
+                    }
+                }),
+                true,
+            ),
+            (
+                json!({
+                    "schema": 1,
+                    "agreement": {
+                        "terms": PREVIOUS_TERMS_VERSION,
+                        "privacy": PREVIOUS_PRIVACY_VERSION,
                         "accepted_by": "keys-i",
                         "accepted_at_unix": 1,
                         "issue": 1,
@@ -257,6 +307,34 @@ mod tests {
     }
 
     #[test]
+    fn automatic_repair_needs_the_administrators_signed_opt_in() {
+        let mut configuration = json!({
+            "schema": 1,
+            "autofix": true,
+            "agreement": {
+                "terms": TERMS_VERSION,
+                "privacy": PRIVACY_VERSION,
+                "autofix": false,
+                "accepted_by": "keys-i",
+                "accepted_at_unix": 1,
+                "issue": 1,
+                "comment": 2
+            }
+        });
+        assert!(accepted_configuration(&configuration));
+        assert!(!agreement_covers(&configuration, true));
+        assert!(!crate::setup::autofix_enabled(&configuration));
+        configuration["agreement"]["autofix"] = json!(true);
+        assert!(accepted_configuration(&configuration));
+        assert!(agreement_covers(&configuration, true));
+        assert!(crate::setup::autofix_enabled(&configuration));
+        configuration["autofix"] = json!(false);
+        assert!(accepted_configuration(&configuration));
+        assert!(agreement_covers(&configuration, false));
+        assert!(!crate::setup::autofix_enabled(&configuration));
+    }
+
+    #[test]
     fn consent_receipt_requires_exact_authenticated_evidence() {
         let repo = "keys-i/koelu";
         let issue = json!({
@@ -269,7 +347,7 @@ mod tests {
             "id": 9,
             "issue_url": "https://api.github.com/repos/keys-i/koelu/issues/7",
             "user": {"login": "keys-i"},
-            "body": consent_comment(repo),
+            "body": consent_comment(repo, None),
         });
         let permission = json!({"permission": "admin"});
         for (issue_value, comment_value, permission_value, valid) in [
@@ -286,20 +364,49 @@ mod tests {
                 permission.clone(),
                 false,
             ),
-            (issue, comment, json!({"permission": "write"}), false),
+            (
+                issue.clone(),
+                comment,
+                json!({"permission": "write"}),
+                false,
+            ),
         ] {
             assert_eq!(
                 receipt_matches(
                     repo,
                     "keys-i",
-                    7,
-                    9,
+                    (7, 9),
                     Some(&issue_value),
                     Some(&comment_value),
                     Some(&permission_value),
+                    &consent_comment(repo, None),
                 ),
                 valid
             );
         }
+        let current_comment = json!({
+            "id": 9,
+            "issue_url": "https://api.github.com/repos/keys-i/koelu/issues/7",
+            "user": {"login": "keys-i"},
+            "body": consent_comment(repo, Some(true)),
+        });
+        assert!(receipt_matches(
+            repo,
+            "keys-i",
+            (7, 9),
+            Some(&issue),
+            Some(&current_comment),
+            Some(&permission),
+            &consent_comment(repo, Some(true)),
+        ));
+        assert!(!receipt_matches(
+            repo,
+            "keys-i",
+            (7, 9),
+            Some(&issue),
+            Some(&current_comment),
+            Some(&permission),
+            &consent_comment(repo, Some(false)),
+        ));
     }
 }

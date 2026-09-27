@@ -104,6 +104,7 @@ jobs:
     uses: ./.github/workflows/solve.yml
     with:
       solver-ref: ${{ matrix.solver_ref }}
+      autofix: ${{ matrix.autofix }}
       app-client-id: ${{ vars.KOELU_APP_CLIENT_ID }}
       repo: ${{ matrix.repo }}
       repo-owner: ${{ matrix.owner }}

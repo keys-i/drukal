@@ -20,11 +20,18 @@ pub(super) fn setup(mut arguments: SetupArgs, theme: Theme, output: OutputMode) 
     ui.stage("Finding a check to run");
     let checks = setup::resolve_checks(&repository, &arguments.checks)?;
     ui.stage("Checking the service agreement");
-    let agreement_exists = setup::has_verified_agreement(&repository, &arguments.directory)?;
+    let agreement_exists =
+        setup::has_verified_agreement(&repository, &arguments.directory, arguments.autofix)?;
     if arguments.accept_terms || !agreement_exists {
         ui.finish_progress();
-        arguments.accept_terms =
-            accept_terms(&repository, &checks, theme, output, arguments.accept_terms)?;
+        arguments.accept_terms = accept_terms(
+            &repository,
+            &checks,
+            theme,
+            output,
+            arguments.accept_terms,
+            arguments.autofix,
+        )?;
     } else {
         arguments.accept_terms = true;
     }
@@ -45,6 +52,7 @@ pub(super) fn setup(mut arguments: SetupArgs, theme: Theme, output: OutputMode) 
         !arguments.no_overwrite,
         true,
         arguments.accept_terms,
+        arguments.autofix,
     )?;
     ui.stage("Ready to review");
     if output == OutputMode::Json {
@@ -61,8 +69,9 @@ pub(super) fn setup(mut arguments: SetupArgs, theme: Theme, output: OutputMode) 
         .join("\n");
     print_markdown(
         &format!(
-            "## Repository is ready\n\n**Repository:** `{repository}`\n\n**Checks:** {}\n\n**Credentials stay in:** `keys-i/koelu`\n\nNo secrets were added here. If GitHub opened the Koelu installation page, finish it, then commit the generated files below. The service will handle mentions and dependency pull requests on its next pass.\n\n### Files\n\n{files}",
-            checks.join(", ")
+            "## Repository is ready\n\n**Repository:** `{repository}`\n\n**Checks:** {}\n\n**Automatic repairs:** {}\n\n**Credentials stay in:** `keys-i/koelu`\n\nNo secrets were added here. If GitHub opened the Koelu installation page, finish it, then commit the generated files below. The service will handle mentions and dependency pull requests on its next pass.\n\n### Files\n\n{files}",
+            checks.join(", "),
+            if arguments.autofix { "on" } else { "off" }
         ),
         theme,
     )
@@ -74,6 +83,7 @@ pub(super) fn accept_terms(
     theme: Theme,
     output: OutputMode,
     accepted: bool,
+    autofix: bool,
 ) -> Result<bool> {
     if output == OutputMode::Json
         || !io::stdin().is_terminal()
@@ -89,7 +99,7 @@ pub(super) fn accept_terms(
             setup::PRIVACY_URL
         );
     }
-    print_markdown(&setup_consent_preview(repository, checks), theme)?;
+    print_markdown(&setup_consent_preview(repository, checks, autofix), theme)?;
     if accepted {
         eprintln!("Accepted with --accept-terms. Continuing with {repository}.\n");
         return Ok(true);
@@ -104,10 +114,15 @@ pub(super) fn accept_terms(
     bail!("setup was not changed; rerun with --accept-terms after you agree")
 }
 
-pub(super) fn setup_consent_preview(repository: &str, checks: &[String]) -> String {
+pub(super) fn setup_consent_preview(repository: &str, checks: &[String], autofix: bool) -> String {
     format!(
-        "## Before Koelu connects\n\nFor `{repository}`, Koelu will:\n\n- verify your admin access and open the Koelu installation page if needed\n- use `{}` as CI evidence\n- read relevant issues, pull requests, diffs and check results\n- record your agreement in a closed issue and non-secret `.github/koelu.toml` file\n- add Dependabot configuration only when it is missing\n- send bounded evidence to the model providers described in the privacy policy\n\nYour App and model credentials stay in `keys-i/koelu`. Koelu won't copy them here or change branch protection. You still decide what gets merged.\n\n**Terms:** {}\n\n**Privacy:** {}\n",
+        "## Before Koelu connects\n\nFor `{repository}`, Koelu will:\n\n- verify your admin access and open the Koelu installation page if needed\n- use `{}` as CI evidence\n- read relevant issues, pull requests, diffs and check results\n- record your agreement in a closed issue and non-secret `.github/koelu.toml` file\n- add Dependabot configuration only when it is missing\n- send bounded evidence to the model providers described in the privacy policy{}\n\nYour App and model credentials stay in `keys-i/koelu`. Koelu won't copy them here or change branch protection. You still decide what gets merged.\n\n**Terms:** {}\n\n**Privacy:** {}\n",
         checks.join("`, `"),
+        if autofix {
+            "\n- open checked replacement PRs for eligible Dependabot conflicts and failed Cargo checks"
+        } else {
+            ""
+        },
         setup::TERMS_URL,
         setup::PRIVACY_URL,
     )
@@ -135,6 +150,7 @@ pub(super) fn dependasolve(
         !arguments.no_overwrite,
         arguments.apply,
         arguments.accept_terms,
+        arguments.autofix,
     )?;
     ui.stage(if arguments.apply {
         "Repository ready"
@@ -153,7 +169,7 @@ pub(super) fn dependasolve(
             .collect::<Vec<_>>()
             .join("\n");
         let markdown = format!(
-            "## {}\n\n**Repository:** `{}`\n\n**Source:** `{}`\n\n**CI evidence:** {}\n\n**Branch protection:** unchanged\n\n### Files\n\n{}\n\n{}",
+            "## {}\n\n**Repository:** `{}`\n\n**Source:** `{}`\n\n**CI evidence:** {}\n\n**Automatic repairs:** {}\n\n**Branch protection:** unchanged\n\n### Files\n\n{}\n\n{}",
             if arguments.apply {
                 "Repository is ready"
             } else {
@@ -162,6 +178,7 @@ pub(super) fn dependasolve(
             arguments.repo,
             source.joined(),
             arguments.checks.join(", "),
+            if arguments.autofix { "on" } else { "off" },
             files,
             if arguments.apply {
                 "Your agreement is saved. Koelu will check its access, then handle mentions and pending dependency pull requests."

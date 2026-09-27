@@ -19,7 +19,7 @@ mod agent_commands;
 mod code;
 mod repository_setup;
 
-use agent_commands::{doctor, native_agent, prepare_repair, resolve, respond, review};
+use agent_commands::{auto_repair, doctor, native_agent, prepare_repair, resolve, respond, review};
 use code::CodeArgs;
 use repository_setup::{dependasolve, setup};
 
@@ -113,6 +113,9 @@ enum AgentCommands {
 
     #[command(hide = true)]
     PrepareRepair(PrepareRepairArgs),
+
+    #[command(hide = true)]
+    AutoRepair(AutoRepairArgs),
 }
 
 #[derive(Debug, Args)]
@@ -172,6 +175,10 @@ struct DependSolveArgs {
     /// Accept the current Koelu service terms and privacy policy for this repository
     #[arg(long, requires = "apply")]
     accept_terms: bool,
+
+    /// Open checked replacement PRs for eligible Dependabot conflicts and failed Cargo checks
+    #[arg(long)]
+    autofix: bool,
 }
 
 #[derive(Debug, Args)]
@@ -198,6 +205,10 @@ struct SetupArgs {
     /// Accept the current Koelu service terms and privacy policy
     #[arg(long)]
     accept_terms: bool,
+
+    /// Open checked replacement PRs for eligible Dependabot conflicts and failed Cargo checks
+    #[arg(long)]
+    autofix: bool,
 }
 
 #[derive(Debug, Args)]
@@ -272,6 +283,22 @@ struct PrepareRepairArgs {
     expected_base: String,
     #[arg(long)]
     output: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct AutoRepairArgs {
+    #[arg(long)]
+    repo: String,
+    #[arg(long)]
+    pr: u64,
+    #[arg(long)]
+    expected_head: String,
+    #[arg(long)]
+    expected_base: String,
+    #[arg(long)]
+    directory: Option<PathBuf>,
+    #[arg(long)]
+    probe: bool,
 }
 
 pub fn run() -> Result<()> {
@@ -422,6 +449,7 @@ where
             AgentCommands::Review(arguments) => review(arguments),
             AgentCommands::Respond(arguments) => respond(arguments),
             AgentCommands::PrepareRepair(arguments) => prepare_repair(arguments),
+            AgentCommands::AutoRepair(arguments) => auto_repair(arguments),
         },
     };
     result.map_err(|error| CliFailure::new(output, &error).into())

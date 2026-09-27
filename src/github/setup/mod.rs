@@ -119,14 +119,25 @@ pub fn install(
     directory: &Path,
     overwrite: bool,
     accept_terms: bool,
+    autofix: bool,
 ) -> Result<()> {
     ensure_directory_repository(directory, repo)?;
     let existing = existing_configuration(directory)?;
     let existing_agreement = existing
         .as_ref()
-        .filter(|configuration| consent::accepted_configuration(configuration))
+        .filter(|configuration| {
+            consent::accepted_configuration(configuration)
+                && consent::agreement_covers(configuration, autofix)
+        })
         .and_then(|configuration| configuration.get("agreement"));
-    setup_files(directory, source, required, overwrite, existing_agreement)?;
+    setup_files(
+        directory,
+        source,
+        required,
+        overwrite,
+        existing_agreement,
+        autofix,
+    )?;
     let info = github::api(&format!("repos/{repo}"), None, "GET", false)?
         .ok_or_else(|| anyhow!("repository response was empty"))?;
     if info["full_name"]
@@ -146,7 +157,10 @@ pub fn install(
         bail!("only personal and organisation repositories are supported");
     }
     let reuse_agreement = match existing.as_ref() {
-        Some(configuration) => consent::verified_existing_configuration(repo, configuration)?,
+        Some(configuration) => {
+            consent::agreement_covers(configuration, autofix)
+                && consent::verified_existing_configuration(repo, configuration)?
+        }
         None => false,
     };
     if !accept_terms && !reuse_agreement {
@@ -166,9 +180,16 @@ pub fn install(
         apps::require_app_owner(&app)?;
         apps::require_permissions(&app)?;
         apps::open_installation(apps::KOELU_SLUG, repo)?;
-        consent::agreement(repo)?
+        consent::agreement(repo, autofix)?
     };
-    let files = setup_files(directory, source, required, overwrite, Some(&agreement))?;
+    let files = setup_files(
+        directory,
+        source,
+        required,
+        overwrite,
+        Some(&agreement),
+        autofix,
+    )?;
     for (path, content) in files {
         let replace = overwrite && path.ends_with(".github/koelu.toml");
         write_setup_file(&path, content.as_bytes(), replace)?;
@@ -202,10 +223,13 @@ pub fn ensure_directory_repository(directory: &Path, repo: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn has_verified_agreement(repo: &str, directory: &Path) -> Result<bool> {
+pub fn has_verified_agreement(repo: &str, directory: &Path, autofix: bool) -> Result<bool> {
     github::validate_repository(repo)?;
     match existing_configuration(directory)? {
-        Some(configuration) => consent::verified_existing_configuration(repo, &configuration),
+        Some(configuration) if consent::agreement_covers(&configuration, autofix) => {
+            consent::verified_existing_configuration(repo, &configuration)
+        }
+        Some(_) => Ok(false),
         None => Ok(false),
     }
 }
@@ -217,6 +241,20 @@ pub(crate) fn repository_configuration(github: &github::GitHub) -> Result<Option
     Ok(github
         .raw_optional("contents/.github/koelu.json")?
         .and_then(|content| serde_json::from_str(&content).ok()))
+}
+
+pub(crate) fn verified_autofix_configuration(
+    github: &github::GitHub,
+    value: &Value,
+) -> Result<bool> {
+    Ok(autofix_enabled(value) && consent::verified_configuration(github, value)?)
+}
+
+pub(crate) fn autofix_enabled(value: &Value) -> bool {
+    value["autofix"] == true
+        && value["agreement"]["autofix"] == true
+        && consent::accepted_configuration(value)
+        && consent::current_agreement(value)
 }
 
 fn same_repository(left: &str, right: &str) -> bool {
@@ -374,14 +412,25 @@ pub fn run(
     overwrite: bool,
     apply: bool,
     accept_terms: bool,
+    autofix: bool,
 ) -> Result<Value> {
     github::validate_repository(repo)?;
     let required = checks(required)?;
     refuse_existing_configuration(directory, overwrite)?;
     let agreement = existing_configuration(directory)?
-        .filter(consent::accepted_configuration)
+        .filter(|configuration| {
+            consent::accepted_configuration(configuration)
+                && consent::agreement_covers(configuration, autofix)
+        })
         .and_then(|configuration| configuration.get("agreement").cloned());
-    let files = setup_files(directory, source, &required, overwrite, agreement.as_ref())?;
+    let files = setup_files(
+        directory,
+        source,
+        &required,
+        overwrite,
+        agreement.as_ref(),
+        autofix,
+    )?;
     let preview = json!({
         "repository": repo,
         "source": source.joined(),
@@ -398,9 +447,18 @@ pub fn run(
         "app": apps::KOELU_SLUG,
         "overwrite": overwrite,
         "apply": apply,
+        "autofix": autofix,
     });
     if apply {
-        install(repo, source, &required, directory, overwrite, accept_terms)?;
+        install(
+            repo,
+            source,
+            &required,
+            directory,
+            overwrite,
+            accept_terms,
+            autofix,
+        )?;
     }
     Ok(preview)
 }

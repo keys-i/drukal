@@ -99,10 +99,17 @@ pub(crate) struct DeliveryAuth {
     publication: Option<HostedWriteAuthorization>,
 }
 
-struct HostedWriteAuthorization {
-    issue: u64,
-    approved: crate::mentions::ApprovedWrite,
-    claim_comment: u64,
+enum HostedWriteAuthorization {
+    Approved {
+        issue: u64,
+        approved: crate::mentions::ApprovedWrite,
+        claim_comment: u64,
+    },
+    DependabotRepair {
+        number: u64,
+        head: String,
+        base: String,
+    },
 }
 
 impl DeliveryAuth {
@@ -133,10 +140,36 @@ impl DeliveryAuth {
             bail!("a bound hosted write approval is required");
         }
         let mut auth = Self::installation(repository, token)?;
-        auth.publication = Some(HostedWriteAuthorization {
+        auth.publication = Some(HostedWriteAuthorization::Approved {
             issue,
             approved: approved.clone(),
             claim_comment,
+        });
+        Ok(auth)
+    }
+
+    pub(crate) fn repair_installation(
+        repository: &str,
+        token: impl Into<String>,
+        number: u64,
+        head: &str,
+        base: &str,
+    ) -> Result<Self> {
+        if number == 0
+            || ![head, base].iter().all(|sha| {
+                sha.len() == 40
+                    && sha
+                        .bytes()
+                        .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+            })
+        {
+            bail!("automatic repair requires a pull request number and full commit SHAs");
+        }
+        let mut auth = Self::installation(repository, token)?;
+        auth.publication = Some(HostedWriteAuthorization::DependabotRepair {
+            number,
+            head: head.to_owned(),
+            base: base.to_owned(),
         });
         Ok(auth)
     }
@@ -157,7 +190,7 @@ impl DeliveryAuth {
             bail!("hosted delivery authentication must match the selected repository");
         }
         if self.publication.is_none() {
-            bail!("hosted delivery requires a bound approved write");
+            bail!("hosted delivery requires a bound write authorization");
         }
         Ok(())
     }
@@ -172,20 +205,33 @@ impl DeliveryAuth {
 
     fn revalidate_publication(&self) -> Result<()> {
         let Some(expected) = self.publication.as_ref() else {
-            bail!("hosted delivery requires a bound approved write");
+            bail!("hosted delivery requires a bound write authorization");
         };
         let github = github::GitHub::new(&self.repository, &self.token)?;
-        let Some(actual) = crate::mentions::approved_write_with_claim(
-            &github,
-            expected.issue,
-            expected.approved.approval_comment,
-            expected.claim_comment,
-        )?
-        else {
-            bail!("the hosted write approval changed before publication");
-        };
-        if actual != expected.approved {
-            bail!("the hosted write approval no longer matches this delivery");
+        match expected {
+            HostedWriteAuthorization::Approved {
+                issue,
+                approved,
+                claim_comment,
+            } => {
+                let Some(actual) = crate::mentions::approved_write_with_claim(
+                    &github,
+                    *issue,
+                    approved.approval_comment,
+                    *claim_comment,
+                )?
+                else {
+                    bail!("the hosted write approval changed before publication");
+                };
+                if actual != *approved {
+                    bail!("the hosted write approval no longer matches this delivery");
+                }
+            }
+            HostedWriteAuthorization::DependabotRepair { number, head, base } => {
+                if crate::reviews::autofix::candidate(&github, *number, head, base)?.is_none() {
+                    bail!("the Dependabot repair is no longer eligible for publication");
+                }
+            }
         }
         Ok(())
     }

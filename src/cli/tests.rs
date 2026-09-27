@@ -178,6 +178,7 @@ fn setup_requires_explicit_consent_for_json_output() {
         Theme::Plain,
         OutputMode::Json,
         false,
+        false,
     )
     .expect_err("JSON setup cannot prompt");
     let message = error.to_string();
@@ -191,11 +192,12 @@ fn setup_requires_explicit_consent_for_json_output() {
             Theme::Plain,
             OutputMode::Json,
             true,
+            false,
         )
         .unwrap()
     );
 
-    let preview = setup_consent_preview("owner/repo", &["test".to_owned()]);
+    let preview = setup_consent_preview("owner/repo", &["test".to_owned()], false);
     for expected in [
         "owner/repo",
         "`test` as CI evidence",

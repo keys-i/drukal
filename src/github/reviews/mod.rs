@@ -1,3 +1,4 @@
+pub(crate) mod autofix;
 mod evidence;
 pub mod model;
 mod presentation;

@@ -62,7 +62,7 @@ Omit `--solver-ref` to use the source setup resolves; provide `keys-i/koelu@40_C
 
 The central `keys-i/koelu` service polls a bounded recent window of consented installations. Mentions and discovery use short-lived, installation-scoped tokens with only the permissions needed for that operation. Each selected review receives a repository-scoped token.
 
-Review windows rotate fairly across eligible pull requests. Koelu honours the configured source pin, verifies Dependabot evidence, reads the selected CI checks, and leaves unsupported, grouped, or ambiguous updates as a `COMMENT` for human review. Koelu reserves Contents write access for an approved coding path, but mention and review tokens are explicitly narrowed to read-only. They cannot push or merge.
+Review windows rotate fairly across eligible pull requests. Koelu honours the configured source pin, verifies Dependabot evidence, reads the selected CI checks, and leaves unsupported, grouped, or ambiguous updates as a `COMMENT` for human review. Mention and review tokens remain read-only. An administrator may rerun `koelu setup --autofix --accept-terms` to opt in to checked replacement pull requests for signed Cargo updates with merge conflicts or failed required checks. Koelu never edits the Dependabot branch or merges a replacement.
 
 Ask in an issue or pull request:
 

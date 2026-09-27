@@ -41,7 +41,7 @@ pub fn local_files(
     required: &[String],
     overwrite: bool,
 ) -> Result<BTreeMap<PathBuf, String>> {
-    setup_files(directory, source, required, overwrite, None)
+    setup_files(directory, source, required, overwrite, None, false)
 }
 
 pub(super) fn existing_configuration(directory: &Path) -> Result<Option<Value>> {
@@ -100,6 +100,7 @@ pub(super) fn setup_files(
     required: &[String],
     overwrite: bool,
     agreement: Option<&Value>,
+    autofix: bool,
 ) -> Result<BTreeMap<PathBuf, String>> {
     let root = directory
         .canonicalize()
@@ -107,7 +108,8 @@ pub(super) fn setup_files(
     if !root.is_dir() {
         bail!("--directory must be a directory");
     }
-    let mut configuration = json!({"schema": 1, "source": source.joined(), "checks": required});
+    let mut configuration =
+        json!({"schema": 1, "source": source.joined(), "checks": required, "autofix": autofix});
     if let Some(agreement) = agreement {
         configuration["agreement"] = agreement.clone();
     }
@@ -351,8 +353,9 @@ mod tests {
             "accepted_by": "keys-i",
             "comment": 5848798567_u64,
             "issue": 28,
-            "privacy": "2026-09-27-p4",
-            "terms": "2026-09-27-t4"
+            "privacy": "2026-09-27-p5",
+            "terms": "2026-09-27-t5",
+            "autofix": true
         });
         let files = setup_files(
             temporary.path(),
@@ -360,6 +363,7 @@ mod tests {
             &["test \"quoted\"".into()],
             false,
             Some(&agreement),
+            true,
         )?;
         let content = files
             .iter()
@@ -369,6 +373,7 @@ mod tests {
         let parsed: Value = toml::from_str(content)?;
         assert_eq!(parsed["agreement"], agreement);
         assert_eq!(parsed["checks"], json!(["test \"quoted\""]));
+        assert_eq!(parsed["autofix"], true);
         Ok(())
     }
 
