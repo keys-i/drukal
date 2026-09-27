@@ -56,17 +56,21 @@ pub fn validate_slug(slug: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn require_public_app(app: &Value) -> Result<()> {
-    if app["public"].as_bool() != Some(true) {
-        bail!("the GitHub App must be public");
+pub fn require_public_app(app: &Value, public: &Value) -> Result<()> {
+    let id = app["id"]
+        .as_u64()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| anyhow!("App response has no identity"))?;
+    if public["id"].as_u64() != Some(id) {
+        bail!("the App credentials do not belong to the public Koelu App");
     }
     Ok(())
 }
 
-pub fn require_app_identity(app: &Value, slug: &str) -> Result<()> {
+pub fn require_app_identity(app: &Value, public: &Value, slug: &str) -> Result<()> {
     validate_slug(slug)?;
     require_app_owner(app)?;
-    require_public_app(app)?;
+    require_public_app(app, public)?;
     if app["slug"]
         .as_str()
         .is_none_or(|actual| !actual.eq_ignore_ascii_case(slug))
@@ -136,7 +140,7 @@ mod tests {
 
     #[test]
     fn app_permissions_reserve_write_access_for_approved_delivery() -> Result<()> {
-        let mut app = json!({"permissions": permissions(), "owner": {"login": APP_OWNER}, "public": true, "slug": KOELU_SLUG});
+        let mut app = json!({"permissions": permissions(), "owner": {"login": APP_OWNER}});
         assert_eq!(app["permissions"]["contents"], "write");
         require_app_owner(&app)?;
         require_permissions(&app)?;
@@ -160,9 +164,18 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("workflows");
-        require_app_identity(&app, KOELU_SLUG)?;
-        app["public"] = json!(false);
-        assert!(require_app_identity(&app, KOELU_SLUG).is_err());
+        require_permissions(&app)?;
+        Ok(())
+    }
+
+    #[test]
+    fn app_identity_matches_public_lookup_without_visibility_field() -> Result<()> {
+        let mut app = json!({"id": 42, "permissions": permissions(), "owner": {"login": APP_OWNER}, "slug": KOELU_SLUG});
+        let public = json!({"id": 42});
+        require_app_identity(&app, &public, KOELU_SLUG)?;
+        assert!(require_app_identity(&app, &json!({"id": 43}), KOELU_SLUG).is_err());
+        app.as_object_mut().unwrap().remove("id");
+        assert!(require_app_identity(&app, &public, KOELU_SLUG).is_err());
         assert!(validate_slug("Koelu").is_err());
         Ok(())
     }

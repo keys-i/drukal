@@ -8,7 +8,7 @@ Use this repository’s **Security** tab → **Report a vulnerability**. Do not 
 
 ## Central boundary
 
-The central host keeps App credentials and provider keys in `keys-i/koelu`. Target repositories receive only public `.github/koelu.json`; they never receive a private key, client ID, model key, token, or reusable-workflow secret.
+The central host keeps App credentials and provider keys in `keys-i/koelu`. Target repositories receive only public `.github/koelu.toml`; they never receive a private key, client ID, model key, token, or reusable-workflow secret.
 
 The service polls a bounded recent window across consented installations. Mention and discovery operations use short-lived, installation-scoped tokens with only their needed permissions. A selected dependency review receives a repository-scoped token. An approved delivery receives a fresh, short-lived token restricted to its one repository. This is polling, not a webhook endpoint, so work starts on a later cycle.
 
@@ -20,7 +20,7 @@ Before central processing, an authorised repository administrator installs Koelu
 koelu setup --repo owner/repo --check test --accept-terms
 ```
 
-Setup creates a closed, admin-authored receipt and stores its IDs, signer, time, and policy versions in `.github/koelu.json`. The service revalidates the exact receipt and current admin access. A policy-version change pauses processing until setup is run again. Koelu 0.6.9 requires Terms `2026-09-27-t4` and Privacy `2026-09-27-p4`. Review the [Terms](../docs/TERMS.md) and [Privacy policy](../docs/PRIVACY.md) first.
+Setup creates a closed, admin-authored receipt and stores its IDs, signer, time, and policy versions in `.github/koelu.toml`. The service revalidates the exact receipt and current admin access. A policy-version change pauses processing until setup is run again. Koelu 0.6.9 requires Terms `2026-09-27-t4` and Privacy `2026-09-27-p4`. Review the [Terms](../docs/TERMS.md) and [Privacy policy](../docs/PRIVACY.md) first.
 
 ## Reviews and mentions
 

@@ -71,10 +71,7 @@ pub(super) fn sweep_with_token(
         };
         let private = repository["private"].as_bool();
         let github = GitHub::new(name, token)?;
-        let accepted = match github
-            .raw_optional("contents/.github/koelu.json")?
-            .and_then(|content| serde_json::from_str::<Value>(&content).ok())
-        {
+        let accepted = match setup::repository_configuration(&github)? {
             Some(configuration) => match setup::verified_configuration(&github, &configuration) {
                 Ok(accepted) => accepted,
                 Err(error) => {

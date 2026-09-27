@@ -153,7 +153,7 @@ pub fn install(
         bail!("read {TERMS_URL} and {PRIVACY_URL}, then rerun with --accept-terms if you agree");
     }
     if !overwrite && existing.is_some() && !reuse_agreement {
-        bail!("refusing to overwrite existing .github/koelu.json");
+        bail!("refusing to overwrite existing Koelu configuration");
     }
     let agreement = if reuse_agreement {
         existing
@@ -170,7 +170,7 @@ pub fn install(
     };
     let files = setup_files(directory, source, required, overwrite, Some(&agreement))?;
     for (path, content) in files {
-        let replace = overwrite && path.ends_with(".github/koelu.json");
+        let replace = overwrite && path.ends_with(".github/koelu.toml");
         write_setup_file(&path, content.as_bytes(), replace)?;
     }
     Ok(())
@@ -208,6 +208,15 @@ pub fn has_verified_agreement(repo: &str, directory: &Path) -> Result<bool> {
         Some(configuration) => consent::verified_existing_configuration(repo, &configuration),
         None => Ok(false),
     }
+}
+
+pub(crate) fn repository_configuration(github: &github::GitHub) -> Result<Option<Value>> {
+    if let Some(content) = github.raw_optional("contents/.github/koelu.toml")? {
+        return Ok(toml::from_str(&content).ok());
+    }
+    Ok(github
+        .raw_optional("contents/.github/koelu.json")?
+        .and_then(|content| serde_json::from_str(&content).ok()))
 }
 
 fn same_repository(left: &str, right: &str) -> bool {
@@ -489,8 +498,8 @@ mod tests {
         assert_eq!(files.len(), 1);
         let configuration = files
             .iter()
-            .find(|(path, _)| path.ends_with(".github/koelu.json"))
-            .map(|(_, content)| serde_json::from_str::<Value>(content))
+            .find(|(path, _)| path.ends_with(".github/koelu.toml"))
+            .map(|(_, content)| toml::from_str::<Value>(content))
             .expect("generated Koelu configuration")?;
         assert_eq!(configuration["schema"], 1);
         assert_eq!(configuration["source"], source.joined());

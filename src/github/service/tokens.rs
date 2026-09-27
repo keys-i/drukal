@@ -71,7 +71,8 @@ impl ServiceTokenProvider {
         if refresh {
             let private_key = self.credentials.private_key.read()?;
             let app = github::authenticated_app(&private_key, &self.credentials.issuer)?;
-            apps::require_app_identity(&app, &self.credentials.slug)?;
+            let public = apps::public_app(&self.credentials.slug)?;
+            apps::require_app_identity(&app, &public, &self.credentials.slug)?;
             let tokens = github::mint_installation_tokens(
                 &private_key,
                 &self.credentials.issuer,
@@ -98,7 +99,8 @@ impl ServiceTokenProvider {
     pub(super) fn delivery_token(&self, repository: &str) -> Result<String> {
         let private_key = self.credentials.private_key.read()?;
         let app = github::authenticated_app(&private_key, &self.credentials.issuer)?;
-        apps::require_app_identity(&app, &self.credentials.slug)?;
+        let public = apps::public_app(&self.credentials.slug)?;
+        apps::require_app_identity(&app, &public, &self.credentials.slug)?;
         let token = github::mint_repository_installation_token(
             &private_key,
             &self.credentials.issuer,

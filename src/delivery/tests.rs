@@ -35,6 +35,7 @@ fn hosted_delivery_refuses_protected_paths() {
         (".github/workflows/checks.yml", false),
         (".github/actions/setup/action.yml", false),
         (".github/koelu.json", false),
+        (".github/koelu.toml", false),
         (".env", false),
         ("AGENTS.md", false),
         ("DESIGN.md", false),

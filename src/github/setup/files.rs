@@ -51,16 +51,23 @@ pub(super) fn existing_configuration(directory: &Path) -> Result<Option<Value>> 
     if !root.is_dir() {
         bail!("--directory must be a directory");
     }
-    let config = safe_path(&root, ".github/koelu.json")?;
-    match fs::symlink_metadata(&config) {
-        Ok(metadata) if metadata.file_type().is_file() => {
-            let text = read_configuration(&config, &metadata)?;
-            Ok(serde_json::from_str(&text).ok())
+    for (name, legacy) in [(".github/koelu.toml", false), (".github/koelu.json", true)] {
+        let config = safe_path(&root, name)?;
+        match fs::symlink_metadata(&config) {
+            Ok(metadata) if metadata.file_type().is_file() => {
+                let text = read_configuration(&config, &metadata)?;
+                return Ok(if legacy {
+                    serde_json::from_str(&text).ok()
+                } else {
+                    toml::from_str(&text).ok()
+                });
+            }
+            Ok(_) => bail!("refusing to read existing content: {}", config.display()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
         }
-        Ok(_) => bail!("refusing to read existing content: {}", config.display()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error.into()),
     }
+    Ok(None)
 }
 
 pub(super) fn refuse_existing_configuration(directory: &Path, overwrite: bool) -> Result<()> {
@@ -73,15 +80,18 @@ pub(super) fn refuse_existing_configuration(directory: &Path, overwrite: bool) -
     if !root.is_dir() {
         bail!("--directory must be a directory");
     }
-    let config = safe_path(&root, ".github/koelu.json")?;
-    match fs::symlink_metadata(&config) {
-        Ok(_) => bail!(
-            "refusing to overwrite existing content: {}",
-            config.display()
-        ),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
+    for name in [".github/koelu.toml", ".github/koelu.json"] {
+        let config = safe_path(&root, name)?;
+        match fs::symlink_metadata(&config) {
+            Ok(_) => bail!(
+                "refusing to overwrite existing content: {}",
+                config.display()
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
     }
+    Ok(())
 }
 
 pub(super) fn setup_files(
@@ -97,16 +107,12 @@ pub(super) fn setup_files(
     if !root.is_dir() {
         bail!("--directory must be a directory");
     }
-    let configuration = format!(
-        "{}\n",
-        serde_json::to_string_pretty(&json!({
-            "schema": 1,
-            "source": source.joined(),
-            "checks": required,
-            "agreement": agreement.cloned().unwrap_or(Value::Null),
-        }))?
-    );
-    let config = safe_path(&root, ".github/koelu.json")?;
+    let mut configuration = json!({"schema": 1, "source": source.joined(), "checks": required});
+    if let Some(agreement) = agreement {
+        configuration["agreement"] = agreement.clone();
+    }
+    let configuration = toml::to_string_pretty(&configuration)?;
+    let config = safe_path(&root, ".github/koelu.toml")?;
     let mut files = BTreeMap::from([(config.clone(), configuration)]);
     let dependabot = [
         safe_path(&root, ".github/dependabot.yml")?,
@@ -281,7 +287,7 @@ mod tests {
     fn generated_configuration_overwrites_by_default_and_can_be_protected() -> Result<()> {
         let source = SourceRef::parse(&format!("keys-i/koelu@{}", "b".repeat(40)))?;
         let temporary = tempfile::tempdir()?;
-        let path = temporary.path().join(".github/koelu.json");
+        let path = temporary.path().join(".github/koelu.toml");
         fs::create_dir_all(path.parent().expect("generated file parent"))?;
         fs::write(&path, "existing generated content\n")?;
         assert!(
@@ -291,7 +297,7 @@ mod tests {
         let files = local_files(temporary.path(), &source, &["test".into()], true)?;
         let generated = files
             .iter()
-            .find(|(candidate, _)| candidate.ends_with(".github/koelu.json"))
+            .find(|(candidate, _)| candidate.ends_with(".github/koelu.toml"))
             .map(|(_, content)| content)
             .expect("generated configuration");
         write_setup_file(&path, generated.as_bytes(), true)?;
@@ -309,11 +315,11 @@ mod tests {
     #[test]
     fn existing_configuration_is_reused_only_when_it_is_parseable() -> Result<()> {
         let temporary = tempfile::tempdir()?;
-        let config = temporary.path().join(".github/koelu.json");
+        let config = temporary.path().join(".github/koelu.toml");
         fs::create_dir_all(config.parent().expect("configuration parent"))?;
         for (content, expected) in [
-            (r#"{"schema":1,"agreement":{"terms":"2026-09-23"}}"#, true),
-            ("not json", false),
+            ("schema = 1\n[agreement]\nterms = \"2026-09-23\"\n", true),
+            ("not toml", false),
         ] {
             fs::write(&config, content)?;
             assert_eq!(
@@ -324,6 +330,45 @@ mod tests {
         }
         assert!(refuse_existing_configuration(temporary.path(), false).is_err());
         assert!(refuse_existing_configuration(temporary.path(), true).is_ok());
+        let legacy = temporary.path().join(".github/koelu.json");
+        fs::write(&legacy, r#"{"schema":1}"#)?;
+        assert!(existing_configuration(temporary.path())?.is_none());
+        fs::remove_file(&config)?;
+        assert_eq!(
+            existing_configuration(temporary.path())?.unwrap()["schema"],
+            1
+        );
+        assert!(refuse_existing_configuration(temporary.path(), false).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn generated_toml_preserves_consent_and_quoted_check_names() -> Result<()> {
+        let temporary = tempfile::tempdir()?;
+        let source = SourceRef::parse(&format!("keys-i/koelu@{}", "a".repeat(40)))?;
+        let agreement = json!({
+            "accepted_at_unix": 1790447725,
+            "accepted_by": "keys-i",
+            "comment": 5848798567_u64,
+            "issue": 28,
+            "privacy": "2026-09-27-p4",
+            "terms": "2026-09-27-t4"
+        });
+        let files = setup_files(
+            temporary.path(),
+            &source,
+            &["test \"quoted\"".into()],
+            false,
+            Some(&agreement),
+        )?;
+        let content = files
+            .iter()
+            .find(|(path, _)| path.ends_with(".github/koelu.toml"))
+            .map(|(_, content)| content)
+            .expect("generated TOML");
+        let parsed: Value = toml::from_str(content)?;
+        assert_eq!(parsed["agreement"], agreement);
+        assert_eq!(parsed["checks"], json!(["test \"quoted\""]));
         Ok(())
     }
 

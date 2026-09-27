@@ -8,7 +8,7 @@ These terms cover the hosted Koelu service maintained through `keys-i/koelu`. Th
 
 ## Your agreement
 
-You must be authorised to connect the selected GitHub account, organisation, and repositories. By passing `--accept-terms`, you accept these terms and the matching [Privacy policy](PRIVACY.md). Koelu records that acceptance in a closed GitHub issue and the repository’s public `.github/koelu.json` file.
+You must be authorised to connect the selected GitHub account, organisation, and repositories. By passing `--accept-terms`, you accept these terms and the matching [Privacy policy](PRIVACY.md). Koelu records that acceptance in a closed GitHub issue and the repository’s public `.github/koelu.toml` file.
 
 ## What Koelu does
 

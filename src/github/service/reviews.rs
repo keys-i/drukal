@@ -71,7 +71,7 @@ where
                 record_sweep_failure(
                     &mut failures,
                     name,
-                    &anyhow!(".github/koelu.json has an invalid trusted solver source: {error}"),
+                    &anyhow!("Koelu configuration has an invalid trusted solver source: {error}"),
                 );
                 continue;
             }
@@ -79,7 +79,7 @@ where
                 record_sweep_failure(
                     &mut failures,
                     name,
-                    &anyhow!(".github/koelu.json has no trusted solver source"),
+                    &anyhow!("Koelu configuration has no trusted solver source"),
                 );
                 continue;
             }
@@ -93,7 +93,7 @@ where
             record_sweep_failure(
                 &mut failures,
                 name,
-                &anyhow!(".github/koelu.json has invalid CI evidence names"),
+                &anyhow!("Koelu configuration has invalid CI evidence names"),
             );
             continue;
         }
@@ -156,10 +156,7 @@ where
 }
 
 fn service_configuration(github: &GitHub) -> Result<Option<Value>> {
-    let Some(configuration) = github
-        .raw_optional("contents/.github/koelu.json")?
-        .and_then(|content| serde_json::from_str::<Value>(&content).ok())
-    else {
+    let Some(configuration) = setup::repository_configuration(github)? else {
         return Ok(None);
     };
     if setup::verified_configuration(github, &configuration)? {

@@ -199,7 +199,7 @@ fn setup_requires_explicit_consent_for_json_output() {
     for expected in [
         "owner/repo",
         "`test` as CI evidence",
-        ".github/koelu.json",
+        ".github/koelu.toml",
         "closed issue",
         "keys-i/koelu",
         setup::TERMS_URL,

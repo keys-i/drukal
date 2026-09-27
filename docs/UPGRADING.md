@@ -25,7 +25,7 @@ The public GitHub App and mention must both use **Koelu** and `@koelu`. Before d
 1. Confirm the existing App is [Koelu](https://github.com/apps/koelu) under `keys-i`, with its intended visibility and permissions.
 2. In the central `keys-i/koelu` repository only, move the existing `RADY_*` credentials to their `KOELU_*` names. `KOELU_APP_CLIENT_ID` and `KOELU_APP_SLUG=koelu` are already set. Re-enter the App private key, Gemini key, and Cerebras key as Koelu secrets through GitHub settings; GitHub does not reveal their old values. Configure any additional provider keys you use, and add `KOELU_RELEASE_TOKEN` and `CARGO_REGISTRY_TOKEN` before publishing. Do not put these in target repositories.
 3. Deploy the Koelu central workflow only after the App and credentials are ready. Old environment variable names are not read by this version.
-4. Run setup as an administrator in each connected repository, then review and commit its generated `.github/koelu.json`. Remove an obsolete `.github/pekin.json` only after the new setup succeeds and its contents are no longer needed.
+4. Run setup as an administrator in each connected repository, then review and commit its generated `.github/koelu.toml`. Remove an obsolete `.github/koelu.json` or `.github/pekin.json` only after the new setup succeeds and its contents are no longer needed.
 
 Until the new workflow is deployed, the existing workflow may still read `RADY_APP_SLUG`. Set that legacy variable's value to `koelu` if you need it to keep running during the cutover; remove the variable after the old workflow is retired.
 

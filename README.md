@@ -48,7 +48,7 @@ target/release/koelu --help
 koelu setup --repo owner/repo --check test --accept-terms
 ```
 
-Setup previews what it will do, writes a small public `.github/koelu.json`, creates a closed consent receipt, and adds Dependabot configuration only when it is missing. It never copies service credentials into the repository or changes branch protection. Review and commit the generated files.
+Setup previews what it will do, writes a small public `.github/koelu.toml`, creates a closed consent receipt, and adds Dependabot configuration only when it is missing. It never copies service credentials into the repository or changes branch protection. Review and commit the generated files. Existing `.github/koelu.json` files remain readable during migration; remove the old file after committing the TOML replacement.
 
 `koelu dependasolve` is the scriptable setup form. It is not a direct review command:
 

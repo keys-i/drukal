@@ -8,7 +8,7 @@ This policy covers the hosted Koelu service maintained through `keys-i/koelu`. A
 
 ## Information Koelu handles
 
-Koelu receives the GitHub account and repository information exposed to its App installation. That can include usernames, issue and pull-request text, comments, diffs, paths, commit IDs, check results, and links. It stores consent receipt IDs, the accepting login, policy versions, and acceptance time in the target repository’s `.github/koelu.json`.
+Koelu receives the GitHub account and repository information exposed to its App installation. That can include usernames, issue and pull-request text, comments, diffs, paths, commit IDs, check results, and links. It stores consent receipt IDs, the accepting login, policy versions, and acceptance time in the target repository’s `.github/koelu.toml` (or a legacy `.github/koelu.json` during migration).
 
 Koelu uses this information to authenticate work, answer `@koelu`, review eligible pull requests, prepare an approved write, prevent duplicate work, and protect the service. It does not sell repository content or use it for advertising.
 
@@ -22,7 +22,7 @@ App credentials stay in the central service and out of child processes. The sele
 
 Koelu has no separate user-profile or prompt database. GitHub comments, reviews, configuration, and Actions logs follow GitHub and repository retention settings. Providers retain requests under their own terms. Local CLI evidence remains on the operator’s machine until removed.
 
-You can stop new processing by uninstalling the App or removing `.github/koelu.json`, and can remove GitHub content where GitHub allows. For an access, correction, or privacy concern that cannot be handled in the repository, use the private route in [Security](../.github/SECURITY.md) without sending unnecessary repository content.
+You can stop new processing by uninstalling the App or removing the Koelu configuration (`.github/koelu.toml` and any legacy `.github/koelu.json`), and can remove GitHub content where GitHub allows. For an access, correction, or privacy concern that cannot be handled in the repository, use the private route in [Security](../.github/SECURITY.md) without sending unnecessary repository content.
 
 ## Automated work
 
