@@ -22,6 +22,7 @@ pub(crate) use evidence::allowed_dependency_path;
 pub use evidence::{
     DependabotMetadata, checks, ci_blockers, compatibility, files_context, resolve,
 };
+pub(crate) use evidence::{release_manifest_version, release_version};
 pub use presentation::{decision, render};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -53,6 +54,7 @@ pub fn review_pr(
         bail!("selected App slug and valid external required checks are required");
     }
     let (pull, dependency, metadata) = resolve(github, number)?;
+    let release = release_version(github.repo(), &pull);
     if let Some(metadata) = metadata {
         if update_type != metadata.update_type || maintainer_changes != metadata.maintainer_changes
         {
@@ -66,6 +68,9 @@ pub fn review_pr(
     let changed_files = pull["changed_files"].as_u64().unwrap_or_default() as usize;
     let (files, complete) = files_context(github, number, changed_files)?;
     let base_ref = text(&pull, &["base", "ref"])?;
+    let base_release = release
+        .map(|_| release_manifest_version(github, text(&pull, &["base", "sha"])?))
+        .transpose()?;
     let endpoint = format!("branches/{}/protection", percent_encode(base_ref));
     let mut protection = github.api_optional(&endpoint, None, "GET")?;
     let mut rows = checks(github, head)?;
@@ -94,6 +99,8 @@ pub fn review_pr(
         "title": pull["title"].as_str().unwrap_or_default().chars().take(2000).collect::<String>(),
         "description": pull["body"].as_str().unwrap_or_default().chars().take(12000).collect::<String>(),
         "dependency": dependency, "files": files, "complete_diff": complete,
+        "release_version": release, "base_release_version": base_release,
+        "mergeable": pull["mergeable"], "mergeable_state": pull["mergeable_state"],
         "checks": rows, "update_type": update_type,
         "maintainer_changes": maintainer_changes,
     });

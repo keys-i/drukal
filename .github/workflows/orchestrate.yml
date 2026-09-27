@@ -96,6 +96,11 @@ jobs:
       (github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.event.pull_request.user.login == 'dependabot[bot]' ||
+      (github.repository == 'keys-i/koelu' &&
+      (github.event.pull_request.user.login == 'koelu[bot]' ||
+      github.event.pull_request.user.login == 'app/koelu') &&
+      startsWith(github.event.pull_request.head.ref, 'release-please--branches--main--components--') &&
+      startsWith(github.event.pull_request.title, 'chore(main): release ')) ||
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))))
     runs-on: ubuntu-24.04
     timeout-minutes: 10

@@ -40,6 +40,38 @@ pub fn decision(
     if context["complete_diff"].as_bool() != Some(true) {
         blockers.push("Some changes are binary, too large or missing from the supplied diff; review those manually".to_owned());
     }
+    if context["mergeable"] == false && context["mergeable_state"] == "dirty" {
+        blockers.push(
+            "This pull request has a merge conflict; update its branch before merging".to_owned(),
+        );
+    }
+    if context["release_version"].is_array() {
+        if context["mergeable"] != true && context["mergeable_state"] != "dirty" {
+            blockers.push(
+                "GitHub has not confirmed that this release pull request can merge".to_owned(),
+            );
+        }
+        if version_triplet(&context["release_version"])
+            .zip(version_triplet(&context["base_release_version"]))
+            .is_none_or(|(release, base)| release <= base)
+        {
+            blockers.push("This release version is not newer than the current base; regenerate the release pull request".to_owned());
+        }
+        for file in context["files"].as_array().into_iter().flatten() {
+            if !matches!(
+                file["filename"].as_str(),
+                Some(
+                    "Cargo.toml"
+                        | "Cargo.lock"
+                        | "docs/CHANGELOG.md"
+                        | "tools/config/release-manifest.json"
+                )
+            ) {
+                blockers.push("The release pull request changes files outside the release set; review it manually".to_owned());
+                break;
+            }
+        }
+    }
     if context["dependency"].as_bool() == Some(true) {
         blockers.extend(dependency_file_blockers(
             context["files"]
@@ -75,6 +107,13 @@ pub fn decision(
         "COMMENT"
     };
     Ok((event, blockers))
+}
+
+fn version_triplet(value: &Value) -> Option<[u64; 3]> {
+    let [major, minor, patch] = value.as_array()?.as_slice() else {
+        return None;
+    };
+    Some([major.as_u64()?, minor.as_u64()?, patch.as_u64()?])
 }
 
 pub fn render(
@@ -601,6 +640,44 @@ mod tests {
                 .iter()
                 .any(|blocker| blocker.contains("outside approved"))
         );
+    }
+
+    #[test]
+    fn stale_and_conflicted_release_prs_cannot_be_approved() -> Result<()> {
+        let review = ModelReview {
+            summary: "Reviewed. Release version change".to_owned(),
+            risk: Risk::Low,
+            observations: vec![],
+            blockers: vec![],
+            minor: vec![],
+        };
+        let mut context = json!({
+            "complete_diff": true,
+            "checks": [],
+            "dependency": false,
+            "files": [{"filename": "Cargo.toml"}],
+            "release_version": [0, 5, 7],
+            "base_release_version": [0, 6, 13],
+            "mergeable": false,
+            "mergeable_state": "dirty"
+        });
+        let (event, blockers) = decision(&review, &context, &[], None)?;
+        assert_eq!(event, "COMMENT");
+        assert!(
+            blockers
+                .iter()
+                .any(|blocker| blocker.contains("regenerate"))
+        );
+        assert!(
+            blockers
+                .iter()
+                .any(|blocker| blocker.contains("merge conflict"))
+        );
+        context["release_version"] = json!([0, 6, 14]);
+        context["mergeable"] = json!(true);
+        context["mergeable_state"] = json!("clean");
+        assert_eq!(decision(&review, &context, &[], None)?.0, "APPROVE");
+        Ok(())
     }
 
     #[test]

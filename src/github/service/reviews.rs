@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::Result;
 use crate::github::{self, GitHub};
+use crate::reviews;
 use crate::setup;
 
 use super::{ServeArgs, owner_matches, record_sweep_failure};
@@ -125,6 +126,7 @@ where
         for pull in pulls {
             let dependabot = pull["user"]["login"] == "dependabot[bot]";
             let eligible_author = dependabot
+                || reviews::release_version(name, &pull).is_some()
                 || matches!(
                     pull["author_association"].as_str(),
                     Some("OWNER" | "MEMBER" | "COLLABORATOR")

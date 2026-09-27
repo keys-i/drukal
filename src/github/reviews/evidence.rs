@@ -35,6 +35,48 @@ pub fn resolve(github: &GitHub, number: u64) -> Result<(Value, bool, Option<Depe
     Ok((pull, dependency, metadata))
 }
 
+pub(crate) fn release_version(repo: &str, pull: &Value) -> Option<[u64; 3]> {
+    if repo != "keys-i/koelu"
+        || !matches!(
+            pull["user"]["login"].as_str(),
+            Some("koelu[bot]" | "app/koelu")
+        )
+        || pull["head"]["repo"]["full_name"] != repo
+        || pull["base"]["repo"]["full_name"] != repo
+        || pull["base"]["ref"] != "main"
+        || !pull["head"]["ref"]
+            .as_str()?
+            .starts_with("release-please--branches--main--components--")
+    {
+        return None;
+    }
+    let version = pull["title"]
+        .as_str()?
+        .strip_prefix("chore(main): release ")?;
+    (!version.starts_with('v') && version.split('.').count() == 3)
+        .then(|| numeric_version(version))
+        .flatten()
+}
+
+pub(crate) fn release_manifest_version(github: &GitHub, sha: &str) -> Result<[u64; 3]> {
+    if !is_sha(sha) {
+        bail!("invalid release manifest commit");
+    }
+    let text = github
+        .raw_optional(&format!(
+            "contents/tools/config/release-manifest.json?ref={sha}"
+        ))?
+        .ok_or_else(|| anyhow!("release manifest is missing"))?;
+    let manifest: Value = serde_json::from_str(&text)?;
+    let version = manifest["."]
+        .as_str()
+        .ok_or_else(|| anyhow!("release manifest has no root version"))?;
+    if version.starts_with('v') || version.split('.').count() != 3 {
+        bail!("release manifest has an invalid version");
+    }
+    numeric_version(version).ok_or_else(|| anyhow!("release manifest has an invalid version"))
+}
+
 fn dependabot_metadata(github: &GitHub, number: u64, pull: &Value) -> Result<DependabotMetadata> {
     let expected_head = text(pull, &["head", "sha"])?;
     let commits = github.pages(&format!("pulls/{number}/commits"), None)?;
@@ -58,8 +100,11 @@ fn metadata_from_commits(commits: &[Value], expected_head: &str) -> Option<Depen
     if commit["sha"] != expected_head {
         return None;
     }
+    let committer = commit["committer"]["login"].as_str();
+    let trusted_committer = committer == Some("dependabot[bot]")
+        || (committer == Some("web-flow") && commit["commit"]["verification"]["reason"] == "valid");
     if commit["author"]["login"] != "dependabot[bot]"
-        || commit["committer"]["login"] != "dependabot[bot]"
+        || !trusted_committer
         || commit["commit"]["verification"]["verified"] != true
     {
         return None;
@@ -72,7 +117,10 @@ fn metadata_from_commits(commits: &[Value], expected_head: &str) -> Option<Depen
 }
 
 fn classify_dependabot_subject(message: &str) -> Option<String> {
-    let subject = message.lines().next()?.strip_prefix("Bump ")?;
+    let subject = message.lines().next()?;
+    let subject = subject
+        .strip_prefix("Bump ")
+        .or_else(|| subject.strip_prefix("build(deps): bump "))?;
     let (package, versions) = subject.rsplit_once(" from ")?;
     let (from, to) = versions.split_once(" to ")?;
     if package.is_empty()
@@ -423,6 +471,31 @@ mod tests {
     }
 
     #[test]
+    fn release_pr_identity_is_limited_to_the_koelu_release_branch() {
+        let mut pull = json!({
+            "user": {"login": "koelu[bot]"},
+            "title": "chore(main): release 0.6.14",
+            "head": {
+                "repo": {"full_name": "keys-i/koelu"},
+                "ref": "release-please--branches--main--components--koelu"
+            },
+            "base": {"repo": {"full_name": "keys-i/koelu"}, "ref": "main"}
+        });
+        assert_eq!(release_version("keys-i/koelu", &pull), Some([0, 6, 14]));
+        pull["user"]["login"] = json!("app/koelu");
+        assert_eq!(release_version("keys-i/koelu", &pull), Some([0, 6, 14]));
+        pull["user"]["login"] = json!("stranger[bot]");
+        assert_eq!(release_version("keys-i/koelu", &pull), None);
+        pull["user"]["login"] = json!("koelu[bot]");
+        pull["head"]["ref"] = json!("feature--branches--main--components--koelu");
+        assert_eq!(release_version("keys-i/koelu", &pull), None);
+        pull["head"]["ref"] = json!("release-please--branches--main--components--koelu");
+        assert_eq!(release_version("other/koelu", &pull), None);
+        pull["title"] = json!("chore(main): release 0.06.14");
+        assert_eq!(release_version("keys-i/koelu", &pull), None);
+    }
+
+    #[test]
     fn table_driven_dependabot_subject_classification_is_fail_closed() {
         for (subject, expected) in [
             (
@@ -432,6 +505,10 @@ mod tests {
             (
                 "Bump serde from 1.0.0 to 1.0.1",
                 Some("version-update:semver-patch"),
+            ),
+            (
+                "build(deps): bump sha2 from 0.10.9 to 0.11.0",
+                Some("version-update:semver-minor"),
             ),
             (
                 "Bump rust from 1.85 to 2.0",
@@ -478,7 +555,18 @@ mod tests {
                     "sha": "a".repeat(40),
                     "author": {"login": "dependabot[bot]"},
                     "committer": {"login": "web-flow"},
-                    "commit": {"message": "Bump serde from 1.0.0 to 1.0.1", "verification": {"verified": true}}
+                    "commit": {"message": "build(deps): bump serde from 1.0.0 to 1.0.1", "verification": {"verified": true, "reason": "valid"}}
+                })],
+                "a".repeat(40),
+                "version-update:semver-patch",
+                "false",
+            ),
+            (
+                vec![json!({
+                    "sha": "a".repeat(40),
+                    "author": {"login": "dependabot[bot]"},
+                    "committer": {"login": "web-flow"},
+                    "commit": {"message": "build(deps): bump serde from 1.0.0 to 1.0.1", "verification": {"verified": true, "reason": "invalid"}}
                 })],
                 "a".repeat(40),
                 "unsupported",

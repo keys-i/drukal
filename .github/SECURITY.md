@@ -26,7 +26,7 @@ Setup creates a closed, admin-authored receipt and stores its IDs, signer, time,
 
 Only `OWNER`, `MEMBER`, and `COLLABORATOR` actors can invoke `@koelu <prompt>`. Replies are read-only. Issue text, pull-request text, checks, diffs, paths, and model output are untrusted input.
 
-Review windows rotate fairly. Koelu honours the configured source pin, verifies Dependabot evidence and selected checks, and leaves unsupported, grouped, or ambiguous updates as comments for manual review. The App registration reserves Contents write access for approved coding delivery. Mention, discovery, and review tokens are narrowed to read-only contents access and cannot push or merge.
+Review windows rotate fairly. Koelu honours the configured source pin, verifies Dependabot evidence and selected checks, and leaves unsupported, grouped, or ambiguous updates as comments for manual review. It also reviews same-repository Koelu Release Please PRs, flags stale versions and merge conflicts, and leaves release repairs to a maintainer. The App registration reserves Contents write access for approved coding delivery. Mention, discovery, and review tokens are narrowed to read-only contents access and cannot push or merge.
 
 The separate `--autofix` opt-in permits checked replacement pull requests for signed Cargo updates with a merge conflict or failed required check. The job receives a short-lived, repository-scoped write token and rechecks the original PR and base before publication. It never edits the Dependabot branch or merges.
 
