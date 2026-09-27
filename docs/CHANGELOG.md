@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.13](https://github.com/keys-i/koelu/compare/v0.6.12...v0.6.13) (2026-09-27)
+
+- Start Koelu when an authorised `@koelu` comment or eligible pull request arrives, and scan existing pull requests when the central repository changes
+- Reuse trusted release binaries across orchestration and review runs when their source revision is unchanged
+- Answer public read-only mentions through the hosted provider directly, avoiding the editing CLI startup on that path
+
 ## [0.6.12](https://github.com/keys-i/koelu/compare/v0.6.11...v0.6.12) (2026-09-27)
 
 - Add an administrator opt-in for checked replacement pull requests when a signed Cargo Dependabot update has a merge conflict or failed required check
