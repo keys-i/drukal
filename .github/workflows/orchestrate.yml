@@ -134,10 +134,13 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == pull_request_target ]]; then
             matrix=$(target/release/koelu agent targets --max-reviews 1 \
               --repo "$GITHUB_REPOSITORY" --pr "$KOELU_EVENT_PR")
+          elif [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            matrix=$(target/release/koelu agent targets --max-reviews 10 \
+              --repo "$GITHUB_REPOSITORY")
           else
             matrix=$(target/release/koelu agent targets --max-reviews 4)
           fi
-          jq -e '.include | type == "array" and length <= 4' <<<"$matrix" > /dev/null
+          jq -e '.include | type == "array" and length <= 10' <<<"$matrix" > /dev/null
           echo "matrix=$(jq -c . <<<"$matrix")" >> "$GITHUB_OUTPUT"
           if [[ $(jq '.include | length' <<<"$matrix") == 0 ]]; then
             echo 'has-targets=false' >> "$GITHUB_OUTPUT"

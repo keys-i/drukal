@@ -210,17 +210,17 @@ pub(crate) fn targets(arguments: ServeArgs) -> Result<()> {
     Ok(())
 }
 
-fn pull_target(arguments: &ServeArgs) -> Result<Option<(&str, u64)>> {
+fn pull_target(arguments: &ServeArgs) -> Result<Option<(&str, Option<u64>)>> {
     if arguments.issue.is_some() || arguments.comment.is_some() {
         bail!("--issue and --comment are only available with agent serve");
     }
     match (&arguments.repo, arguments.pr) {
-        (Some(repo), Some(number)) if number > 0 => {
+        (Some(repo), number) if number.is_none_or(|number| number > 0) => {
             github::validate_repository(repo)?;
             Ok(Some((repo, number)))
         }
         (None, None) => Ok(None),
-        _ => bail!("use --repo and --pr together with agent targets"),
+        _ => bail!("use --repo with an optional positive --pr for agent targets"),
     }
 }
 
@@ -352,11 +352,15 @@ mod tests {
             comment: None,
             pr: Some(5),
         };
-        assert_eq!(pull_target(&arguments)?, Some(("keys-i/koelu", 5)));
+        assert_eq!(pull_target(&arguments)?, Some(("keys-i/koelu", Some(5))));
         arguments.pr = Some(0);
         assert!(pull_target(&arguments).is_err());
         arguments.pr = None;
+        assert_eq!(pull_target(&arguments)?, Some(("keys-i/koelu", None)));
+        arguments.repo = None;
+        arguments.pr = Some(5);
         assert!(pull_target(&arguments).is_err());
+        arguments.repo = Some("keys-i/koelu".to_owned());
         arguments.pr = Some(5);
         arguments.issue = Some(9);
         assert!(pull_target(&arguments).is_err());

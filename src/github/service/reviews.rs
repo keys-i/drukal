@@ -23,7 +23,7 @@ pub(super) struct CentralTarget {
 pub(super) fn central_targets<F>(
     arguments: &ServeArgs,
     token: &str,
-    target: Option<(&str, u64)>,
+    target: Option<(&str, Option<u64>)>,
     select: &mut F,
 ) -> Result<()>
 where
@@ -109,8 +109,8 @@ where
             );
             continue;
         }
-        let pulls = match target {
-            Some((_, number)) => github
+        let pulls = match target.and_then(|(_, number)| number) {
+            Some(number) => github
                 .api_optional(&format!("pulls/{number}"), None, "GET")
                 .map(|pull| pull.into_iter().collect()),
             None => github.pages("pulls?state=open&sort=created&direction=asc", None),

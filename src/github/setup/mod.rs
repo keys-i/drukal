@@ -606,6 +606,7 @@ mod tests {
         ));
         assert!(orchestrator.contains("github.event_name != 'issue_comment' &&"));
         assert!(orchestrator.contains("--repo \"$GITHUB_REPOSITORY\" --pr \"$KOELU_EVENT_PR\""));
+        assert!(orchestrator.contains("koelu agent targets --max-reviews 10"));
         assert!(orchestrator.contains("koelu agent targets --max-reviews 4"));
         assert!(orchestrator.contains("uses: ./.github/workflows/solve.yml"));
         assert!(orchestrator.contains("max-parallel: 4"));
