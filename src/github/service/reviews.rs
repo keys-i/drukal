@@ -20,12 +20,22 @@ pub(super) struct CentralTarget {
     pub(super) autofix: bool,
 }
 
-pub(super) fn central_targets<F>(arguments: &ServeArgs, token: &str, select: &mut F) -> Result<()>
+pub(super) fn central_targets<F>(
+    arguments: &ServeArgs,
+    token: &str,
+    target: Option<(&str, u64)>,
+    select: &mut F,
+) -> Result<()>
 where
     F: FnMut(CentralTarget),
 {
-    let repositories =
-        github::authenticated_pages("installation/repositories", "repositories", token)?;
+    let repositories = if let Some((repo, _)) = target {
+        github::api_authenticated(&format!("repos/{repo}"), None, "GET", false, token)?
+            .into_iter()
+            .collect()
+    } else {
+        github::authenticated_pages("installation/repositories", "repositories", token)?
+    };
     let mut failures = Vec::new();
     let mut repositories = repositories.iter().collect::<Vec<_>>();
     repositories.sort_by_key(|repository| repository["full_name"].as_str().unwrap_or_default());
@@ -38,6 +48,7 @@ where
         let Some(name) = repository["full_name"].as_str().filter(|name| {
             owner_matches(repository, arguments.owner.as_deref())
                 && github::validate_repository(name).is_ok()
+                && target.is_none_or(|(repo, _)| *name == repo)
         }) else {
             continue;
         };
@@ -98,7 +109,13 @@ where
             );
             continue;
         }
-        let pulls = match github.pages("pulls?state=open&sort=created&direction=asc", None) {
+        let pulls = match target {
+            Some((_, number)) => github
+                .api_optional(&format!("pulls/{number}"), None, "GET")
+                .map(|pull| pull.into_iter().collect()),
+            None => github.pages("pulls?state=open&sort=created&direction=asc", None),
+        };
+        let pulls = match pulls {
             Ok(pulls) => pulls,
             Err(error) => {
                 record_sweep_failure(&mut failures, name, &error);
@@ -112,7 +129,8 @@ where
                     pull["author_association"].as_str(),
                     Some("OWNER" | "MEMBER" | "COLLABORATOR")
                 );
-            if pull["draft"].as_bool() != Some(false)
+            if pull["state"] != "open"
+                || pull["draft"].as_bool() != Some(false)
                 || pull["base"]["repo"]["full_name"] != name
                 || pull["head"]["repo"]["full_name"] != name
                 || !eligible_author

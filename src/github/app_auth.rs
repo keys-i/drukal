@@ -51,11 +51,12 @@ pub(crate) fn mint_installation_tokens(
         .collect()
 }
 
-/// Mint a write token for exactly one installed repository
+/// Mint a token for exactly one installed repository and permission scope
 pub(crate) fn mint_repository_installation_token(
     private_key_pem: &str,
     issuer: &str,
     repository: &str,
+    scope: InstallationTokenScope,
 ) -> Result<String> {
     validate_repository(repository)?;
     let (owner, repository_name) = repository
@@ -72,7 +73,7 @@ pub(crate) fn mint_repository_installation_token(
     )?
     .ok_or_else(|| anyhow!("GitHub returned no repository installation"))?;
     let installation = installation_id(&installation)?;
-    let request = repository_token_request(repository_name);
+    let request = repository_token_request(repository_name, scope);
     let jwt = current_app_jwt(&key, issuer)?;
     let response = app_api(
         &format!("app/installations/{installation}/access_tokens"),
@@ -124,8 +125,8 @@ fn service_token_request(scope: InstallationTokenScope) -> Value {
     serde_json::json!({"permissions": permissions})
 }
 
-fn repository_token_request(repository: &str) -> Value {
-    let mut request = service_token_request(InstallationTokenScope::Delivery);
+fn repository_token_request(repository: &str, scope: InstallationTokenScope) -> Value {
+    let mut request = service_token_request(scope);
     request["repositories"] = serde_json::json!([repository]);
     request
 }
@@ -507,7 +508,10 @@ mod tests {
             targets["permissions"].as_object().map(|value| value.len()),
             Some(4)
         );
-        let delivery = repository_token_request("koelu");
+        let delivery = repository_token_request("koelu", InstallationTokenScope::Delivery);
+        let mentions = repository_token_request("koelu", InstallationTokenScope::Mentions);
+        assert_eq!(mentions["repositories"], serde_json::json!(["koelu"]));
+        assert_eq!(mentions["permissions"]["contents"], "read");
         assert_eq!(
             delivery,
             serde_json::json!({

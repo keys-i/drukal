@@ -596,6 +596,16 @@ mod tests {
             assert!(!orchestrator.contains(local));
         }
         assert!(orchestrator.contains("koelu agent serve --once"));
+        assert!(orchestrator.contains("issue_comment:\n    types: [created]"));
+        assert!(orchestrator.contains(
+            "pull_request_target:\n    types: [opened, reopened, synchronize, ready_for_review]"
+        ));
+        assert!(orchestrator.contains("push:\n    branches: [main]"));
+        assert!(orchestrator.contains(
+            "--repo \"$GITHUB_REPOSITORY\" --issue \"$KOELU_EVENT_ISSUE\" --comment \"$KOELU_EVENT_COMMENT\""
+        ));
+        assert!(orchestrator.contains("github.event_name != 'issue_comment' &&"));
+        assert!(orchestrator.contains("--repo \"$GITHUB_REPOSITORY\" --pr \"$KOELU_EVENT_PR\""));
         assert!(orchestrator.contains("koelu agent targets --max-reviews 4"));
         assert!(orchestrator.contains("uses: ./.github/workflows/solve.yml"));
         assert!(orchestrator.contains("max-parallel: 4"));
@@ -603,7 +613,23 @@ mod tests {
         assert!(!orchestrator.contains("target/release/koelu agent sweep"));
         assert!(!orchestrator.contains("target/release/koelu agent respond"));
         assert!(!orchestrator.contains("runs-on: self-hosted"));
-        assert!(!orchestrator.contains("actions/cache@"));
+        assert!(orchestrator.contains("actions/cache@5a3ec84eff668545956fd18022155c47e93e2684"));
+        assert!(orchestrator.contains("if: steps.binary.outputs.cache-hit != 'true'"));
+        let checks = include_str!("../../../.github/workflows/checks.yml");
+        let solve = include_str!("../../../.github/workflows/solve.yml");
+        assert!(
+            checks.contains(
+                "key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}"
+            )
+        );
+        assert!(
+            orchestrator.contains(
+                "key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}"
+            )
+        );
+        assert!(solve.contains(
+            "key: koelu-solver-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha }}"
+        ));
         assert!(orchestrator.contains("permissions:\n  contents: read"));
         assert!(!orchestrator.contains("contents: write"));
         Ok(())

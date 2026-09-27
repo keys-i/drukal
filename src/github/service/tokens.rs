@@ -97,6 +97,22 @@ impl ServiceTokenProvider {
 
     /// Mint a short-lived write token for one installed repository
     pub(super) fn delivery_token(&self, repository: &str) -> Result<String> {
+        self.repository_token(repository, github::InstallationTokenScope::Delivery)
+    }
+
+    pub(super) fn mention_token(&self, repository: &str) -> Result<String> {
+        self.repository_token(repository, github::InstallationTokenScope::Mentions)
+    }
+
+    pub(super) fn target_token(&self, repository: &str) -> Result<String> {
+        self.repository_token(repository, github::InstallationTokenScope::Targets)
+    }
+
+    fn repository_token(
+        &self,
+        repository: &str,
+        scope: github::InstallationTokenScope,
+    ) -> Result<String> {
         let private_key = self.credentials.private_key.read()?;
         let app = github::authenticated_app(&private_key, &self.credentials.issuer)?;
         let public = apps::public_app(&self.credentials.slug)?;
@@ -105,6 +121,7 @@ impl ServiceTokenProvider {
             &private_key,
             &self.credentials.issuer,
             repository,
+            scope,
         )?;
         validate_service_token(&token)?;
         Ok(token)
@@ -252,6 +269,10 @@ mod tests {
                 app_client_id: client_id.map(str::to_owned),
                 app_private_key_file: key_file.map(PathBuf::from),
                 once: true,
+                repo: None,
+                issue: None,
+                comment: None,
+                pr: None,
             };
             let source = app_credentials(&arguments, environment_key);
             match expected {

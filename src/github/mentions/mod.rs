@@ -279,10 +279,15 @@ fn answer(
     if evidence.len() > MAX_EVIDENCE_BYTES {
         bail!("mention evidence is too large to send to a hosted model");
     }
-    if native_harness(harness, codex_authenticated(harness)) {
-        return native_answer(&evidence, model, harness);
+    if prefer_hosted_answer(
+        repository_private,
+        model,
+        bool_environment("KOELU_HOSTED_ANSWERS") == Some(true),
+    ) || !native_harness(harness, codex_authenticated(harness))
+    {
+        return hosted_answer(&evidence, tier, repository_private);
     }
-    hosted_answer(&evidence, tier, repository_private)
+    native_answer(&evidence, model, harness)
 }
 
 fn conversation_evidence(comments: &[Value], current: u64) -> Value {
@@ -308,6 +313,14 @@ fn conversation_evidence(comments: &[Value], current: u64) -> Value {
 
 fn native_harness(harness: Harness, codex_authenticated: bool) -> bool {
     harness != Harness::Codex || codex_authenticated
+}
+
+fn prefer_hosted_answer(
+    repository_private: Option<bool>,
+    model: Option<&str>,
+    enabled: bool,
+) -> bool {
+    enabled && repository_private == Some(false) && model.is_none()
 }
 
 fn codex_authenticated(harness: Harness) -> bool {
@@ -473,6 +486,11 @@ mod tests {
         ] {
             assert_eq!(native_harness(harness, authenticated), native);
         }
+        assert!(prefer_hosted_answer(Some(false), None, true));
+        assert!(!prefer_hosted_answer(Some(true), None, true));
+        assert!(!prefer_hosted_answer(None, None, true));
+        assert!(!prefer_hosted_answer(Some(false), Some("fixed"), true));
+        assert!(!prefer_hosted_answer(Some(false), None, false));
     }
 
     #[test]

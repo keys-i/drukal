@@ -1,6 +1,12 @@
 name: Koelu orchestration
 
 on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  push:
+    branches: [main]
   schedule:
     - cron: '2-57/5 * * * *'
   workflow_dispatch:
@@ -9,11 +15,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: koelu-central-orchestration
+  group: ${{ github.event_name == 'issue_comment' && format('koelu-mention-{0}', github.event.issue.number) || github.event_name == 'pull_request_target' && format('koelu-pr-{0}', github.event.pull_request.number) || 'koelu-central-orchestration' }}
   cancel-in-progress: false
 
 jobs:
   mentions:
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+      startsWith(github.event.comment.body, '@koelu') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -21,9 +32,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore trusted Koelu binary
+        id: binary
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: target/release/koelu
+          key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
       - name: Build trusted Koelu
+        if: steps.binary.outputs.cache-hit != 'true'
         run: cargo build --release --locked --bin koelu
       - name: Install the pinned hosted editing harness
+        if: >-
+          github.event_name != 'issue_comment' ||
+          github.event.repository.private == true ||
+          vars.KOELU_MODEL != '' ||
+          startsWith(github.event.comment.body, '@koelu approve ')
         run: npm install --global --ignore-scripts --no-audit --no-fund @google/gemini-cli@0.61.0
       - name: Answer and deliver consented Koelu requests
         env:
@@ -49,6 +72,9 @@ jobs:
           KOELU_AGENT_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
           KOELU_REVIEW_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
           KOELU_COMMAND_ALLOW_GEMINI: '1'
+          KOELU_HOSTED_ANSWERS: 'true'
+          KOELU_EVENT_ISSUE: ${{ github.event.issue.number }}
+          KOELU_EVENT_COMMENT: ${{ github.event.comment.id }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_RUN_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
@@ -56,9 +82,21 @@ jobs:
             exit 1
           }
           export KOELU_INSTALLATION_SEED="$GITHUB_RUN_NUMBER"
-          target/release/koelu agent serve --once
+          if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
+            target/release/koelu agent serve --once \
+              --repo "$GITHUB_REPOSITORY" --issue "$KOELU_EVENT_ISSUE" --comment "$KOELU_EVENT_COMMENT"
+          else
+            target/release/koelu agent serve --once
+          fi
 
   targets:
+    if: >-
+      github.event_name != 'issue_comment' &&
+      (github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.pull_request.user.login == 'dependabot[bot]' ||
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -69,7 +107,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore trusted Koelu binary
+        id: binary
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: target/release/koelu
+          key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
       - name: Build trusted Koelu
+        if: steps.binary.outputs.cache-hit != 'true'
         run: cargo build --release --locked --bin koelu
       - name: Find consented pull requests
         id: targets
@@ -77,6 +122,7 @@ jobs:
           KOELU_APP_CLIENT_ID: ${{ vars.KOELU_APP_CLIENT_ID }}
           KOELU_APP_PRIVATE_KEY: ${{ secrets.KOELU_APP_PRIVATE_KEY }}
           KOELU_APP_SLUG: ${{ vars.KOELU_APP_SLUG }}
+          KOELU_EVENT_PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_RUN_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
@@ -85,7 +131,12 @@ jobs:
           }
           export KOELU_INSTALLATION_SEED="$GITHUB_RUN_NUMBER"
           export KOELU_TARGET_SEED="$GITHUB_RUN_NUMBER"
-          matrix=$(target/release/koelu agent targets --max-reviews 4)
+          if [[ "$GITHUB_EVENT_NAME" == pull_request_target ]]; then
+            matrix=$(target/release/koelu agent targets --max-reviews 1 \
+              --repo "$GITHUB_REPOSITORY" --pr "$KOELU_EVENT_PR")
+          else
+            matrix=$(target/release/koelu agent targets --max-reviews 4)
+          fi
           jq -e '.include | type == "array" and length <= 4' <<<"$matrix" > /dev/null
           echo "matrix=$(jq -c . <<<"$matrix")" >> "$GITHUB_OUTPUT"
           if [[ $(jq '.include | length' <<<"$matrix") == 0 ]]; then

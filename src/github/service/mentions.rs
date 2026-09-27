@@ -27,6 +27,50 @@ const CLAIM_LEASE: Duration = Duration::from_secs(2 * 60 * 60);
 const MAX_CLAIM_SCAN_PAGES: u64 = 4;
 const COMMENTS_PER_PAGE: usize = 100;
 
+pub(super) fn respond_to_comment(
+    arguments: &ServeArgs,
+    tokens: &mut ServiceTokenProvider,
+    repo: &str,
+    issue: u64,
+    comment: u64,
+) -> Result<()> {
+    github::validate_repository(repo)?;
+    let model = env::var("KOELU_MODEL")
+        .ok()
+        .filter(|value| !value.is_empty());
+    let token = tokens.mention_token(repo)?;
+    let repository =
+        github::api_authenticated(&format!("repos/{repo}"), None, "GET", false, &token)?
+            .ok_or_else(|| anyhow!("GitHub returned no target repository"))?;
+    if repository["full_name"].as_str() != Some(repo)
+        || !owner_matches(&repository, arguments.owner.as_deref())
+    {
+        bail!("the target repository does not match the installed account");
+    }
+    if repository["archived"].as_bool() == Some(true)
+        || repository["disabled"].as_bool() == Some(true)
+    {
+        bail!("the target repository is not active");
+    }
+    let github = GitHub::new(repo, &token)?;
+    let accepted = match setup::repository_configuration(&github)? {
+        Some(configuration) => setup::verified_configuration(&github, &configuration)?,
+        None => false,
+    };
+    if !accepted {
+        bail!("the target repository has no verified Koelu agreement");
+    }
+    crate::mentions::respond_for_repository(
+        &github,
+        issue,
+        comment,
+        model.as_deref(),
+        arguments.harness,
+        repository["private"].as_bool(),
+    )?;
+    dispatch_approved_write(arguments, tokens, &github, issue, comment)
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ClaimRecord {
     issue: u64,
@@ -659,6 +703,10 @@ mod tests {
             app_client_id: None,
             app_private_key_file: None,
             once: true,
+            repo: None,
+            issue: None,
+            comment: None,
+            pr: None,
         };
         let approved = crate::mentions::ApprovedWrite {
             task: "fix the parser".to_owned(),
