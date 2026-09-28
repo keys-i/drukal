@@ -1,3 +1,8 @@
+//! Choose a model from task scope before starting expensive work
+//!
+//! Larger changes and failed checks can raise the tier
+//! An explicit model choice always wins
+
 use anyhow::bail;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -10,6 +15,9 @@ const MAX_CHOICES: usize = 8;
 const MAX_CHOICE_CHARS: usize = 200;
 const MAX_TEXT_BYTES: usize = 16_000;
 
+/// Keep the order of a comma separated model list
+///
+/// Validation happens when a model is chosen so empty entries stay visible
 pub fn parse_model_choices(raw: &str) -> Vec<String> {
     if raw.trim().is_empty() {
         Vec::new()
@@ -21,6 +29,7 @@ pub fn parse_model_choices(raw: &str) -> Vec<String> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// How much model capacity the supplied task appears to need
 pub enum Tier {
     Fast,
     Balanced,
@@ -37,6 +46,17 @@ pub enum Intent {
 }
 
 /// Conservatively classify a request before allocating a workspace
+///
+/// Questions about a fix remain questions
+/// Mixed requests that ask for an action need a write workflow
+///
+/// ```
+/// use koelu::routing::{classify_request, Intent};
+///
+/// assert_eq!(classify_request("How do I fix this failure?"), Intent::ReadOnly);
+/// assert_eq!(classify_request("Explain and fix this failure"), Intent::Write);
+/// assert_eq!(classify_request("Take a look"), Intent::Ambiguous);
+/// ```
 pub fn classify_request(request: &str) -> Intent {
     const WRITE_VERBS: &[&str] = &[
         "add",
@@ -138,6 +158,18 @@ fn read_only_question(text: &str) -> bool {
             .any(|word| second.eq_ignore_ascii_case(word))
 }
 
+/// Raise the tier for larger changes, missing diffs or failed checks
+///
+/// This uses supplied task data and does not contact a model provider
+///
+/// ```
+/// use koelu::routing::{select, Tier};
+/// use serde_json::json;
+///
+/// assert_eq!(select(&json!({"request": "Summarize this"})), Tier::Fast);
+/// assert_eq!(select(&json!({"files": [{"additions": 2}]})), Tier::Balanced);
+/// assert_eq!(select(&json!({"complete_diff": false})), Tier::Deep);
+/// ```
 pub fn select(evidence: &Value) -> Tier {
     let (files, changes, patch_bytes) = scopes(evidence)
         .filter_map(|scope| scope["files"].as_array())
@@ -233,6 +265,20 @@ fn scopes(evidence: &Value) -> impl Iterator<Item = &Value> {
         .chain(evidence.get("pull_request"))
 }
 
+/// Pick the first, middle or last entry in a fast to deep model list
+///
+/// An explicit model overrides the list
+/// Without one, empty or repeated choices are rejected
+///
+/// ```
+/// use koelu::routing::{model_choice, Tier};
+///
+/// let choices = ["quick", "general", "careful"].map(str::to_owned);
+/// assert_eq!(model_choice(None, &choices, Tier::Deep)?, Some("careful"));
+/// assert_eq!(model_choice(Some("chosen"), &choices, Tier::Fast)?, Some("chosen"));
+/// assert!(model_choice(None, &["".into()], Tier::Fast).is_err());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn model_choice<'a>(
     explicit: Option<&'a str>,
     choices: &'a [String],
@@ -290,73 +336,79 @@ mod tests {
     use super::*;
 
     #[test]
-    fn routes_evidence_and_orders_choices() -> Result<()> {
+    fn model_choices_preserve_requested_order() {
         assert_eq!(
             parse_model_choices("fast, balanced, deep"),
             ["fast", "balanced", "deep"]
         );
         assert!(parse_model_choices(" ").is_empty());
-        let choices = ["fast", "balanced", "deep"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-        for (evidence, tier, expected, request, intent) in [
-            (
-                json!({"task": "format this"}),
-                Tier::Fast,
-                "fast",
-                "What is included in 0.6.1?",
-                Intent::ReadOnly,
-            ),
-            (
-                json!({"title": "Update dependency", "files": [{"additions": 2, "deletions": 1, "patch": "+x"}]}),
-                Tier::Balanced,
-                "balanced",
-                "Fix the failing dependency update",
-                Intent::Write,
-            ),
-            (
-                json!({"title": "Fix security vulnerability", "complete_diff": true}),
-                Tier::Deep,
-                "deep",
-                "Take a look at the repository",
-                Intent::Ambiguous,
-            ),
-            (
-                json!({
-                    "request": "Can this merge?",
-                    "issue": {"title": "Dependency update", "body": ""},
-                    "pull_request": {
-                        "files": [{"additions": 2, "deletions": 1, "patch": "+x"}],
-                        "complete_diff": true,
-                        "checks": [{"state": "failure"}],
-                    },
-                }),
-                Tier::Deep,
-                "deep",
-                "Why is this pull request blocked?",
-                Intent::ReadOnly,
-            ),
-            (
-                json!({"task": "explain"}),
-                Tier::Fast,
-                "fast",
-                "How do I fix this failure?",
-                Intent::ReadOnly,
-            ),
-            (
-                json!({"task": "change"}),
-                Tier::Fast,
-                "fast",
-                "Can you explain and fix this failure?",
-                Intent::Write,
-            ),
+        assert_eq!(parse_model_choices("fast,,deep"), ["fast", "", "deep"]);
+    }
+
+    #[test]
+    fn questions_about_fixes_do_not_request_edits() {
+        for request in [
+            "How do I fix this failure?",
+            "Why is this pull request blocked?",
+            "What is included in 0.7.0?",
         ] {
-            assert_eq!(select(&evidence), tier);
+            assert_eq!(classify_request(request), Intent::ReadOnly, "{request}");
+        }
+        assert_eq!(
+            classify_request("Can you explain and fix this failure?"),
+            Intent::Write
+        );
+        assert_eq!(
+            classify_request("Take a look at the repository"),
+            Intent::Ambiguous
+        );
+    }
+
+    #[test]
+    fn each_tier_uses_its_place_in_the_model_list() -> Result<()> {
+        let choices = ["fast", "balanced", "deep"].map(str::to_owned);
+        for (tier, expected) in [
+            (Tier::Fast, "fast"),
+            (Tier::Balanced, "balanced"),
+            (Tier::Deep, "deep"),
+        ] {
             assert_eq!(model_choice(None, &choices, tier)?, Some(expected));
-            assert_eq!(classify_request(request), intent);
+            assert_eq!(model_choice(None, &[], tier)?, None);
+            assert_eq!(model_choice(None, &["only".into()], tier)?, Some("only"));
         }
         Ok(())
+    }
+
+    #[test]
+    fn failed_checks_and_incomplete_diffs_need_a_deep_review() {
+        for evidence in [
+            json!({"pull_request": {"checks": [{"state": "failure"}]}}),
+            json!({"issue": {"complete_diff": false}}),
+            json!({"title": "Fix security vulnerability"}),
+        ] {
+            assert_eq!(select(&evidence), Tier::Deep, "{evidence}");
+        }
+        assert_eq!(select(&json!({"request": "Summarize this"})), Tier::Fast);
+        assert_eq!(
+            select(&json!({"files": [{"additions": 2}]})),
+            Tier::Balanced
+        );
+    }
+
+    #[test]
+    fn model_lists_have_count_and_text_limits() {
+        assert!(model_choice(None, &["x".repeat(MAX_CHOICE_CHARS)], Tier::Fast).is_ok());
+        assert!(model_choice(None, &["x".repeat(MAX_CHOICE_CHARS + 1)], Tier::Fast).is_err());
+        let choices = (0..MAX_CHOICES)
+            .map(|index| format!("model-{index}"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            model_choice(None, &choices, Tier::Deep).unwrap(),
+            Some("model-7")
+        );
+        let mut too_many = choices;
+        too_many.push("extra".into());
+        assert!(model_choice(None, &too_many, Tier::Fast).is_err());
     }
 
     #[test]

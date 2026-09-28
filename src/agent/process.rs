@@ -1,3 +1,7 @@
+//! Run child processes with cancellation, timeouts and bounded output
+//!
+//! Child processes receive a filtered environment so unrelated credentials stay private
+
 use std::collections::BTreeMap;
 use std::env;
 use std::ffi::OsStr;
@@ -41,6 +45,7 @@ const SENSITIVE_ENVIRONMENT: &[&str] = &[
 ];
 
 #[derive(Debug)]
+/// Captured output and exit status from one child process
 pub struct ProcessOutput {
     pub code: i32,
     pub stdout: String,
@@ -61,6 +66,10 @@ enum Stream {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Run an executable directly and stop it on timeout, cancellation or excess output
+///
+/// The output limit applies to stdout and stderr together
+/// A nonzero exit is retained in the result so callers can explain expected failures
 pub fn execute<I, S>(
     program: &OsStr,
     arguments: I,
@@ -300,10 +309,96 @@ mod tests {
     }
 
     #[test]
-    fn real_process_output_is_bounded_and_collected() -> Result<()> {
+    fn process_preserves_input_streams_and_exit_status() -> Result<()> {
         let output = execute(
             OsStr::new("sh"),
-            ["-c", "printf out; printf err >&2"],
+            ["-c", "cat; printf err >&2; exit 7"],
+            Path::new("."),
+            b"input",
+            Duration::from_secs(2),
+            &BTreeMap::new(),
+            false,
+            None,
+        )?;
+        assert_eq!(output.code, 7);
+        assert_eq!(output.stdout, "input");
+        assert_eq!(output.stderr, "err");
+        Ok(())
+    }
+
+    #[test]
+    fn cancelled_process_never_starts() -> Result<()> {
+        let directory = tempdir()?;
+        let cancelled = directory.path().join("cancelled");
+        let sentinel = directory.path().join("started");
+        std::fs::write(&cancelled, b"cancelled")?;
+        let error = execute(
+            OsStr::new("sh"),
+            [
+                OsStr::new("-c"),
+                OsStr::new("touch \"$1\""),
+                OsStr::new("test"),
+                sentinel.as_os_str(),
+            ],
+            directory.path(),
+            b"",
+            Duration::from_secs(2),
+            &BTreeMap::new(),
+            false,
+            Some(&cancelled),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("cancelled"));
+        assert!(!sentinel.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn active_process_stops_when_cancellation_appears() -> Result<()> {
+        let directory = tempdir()?;
+        let cancelled = directory.path().join("cancelled");
+        let error = execute(
+            OsStr::new("sh"),
+            [
+                OsStr::new("-c"),
+                OsStr::new("printf cancelled > \"$1\"; while :; do :; done"),
+                OsStr::new("test"),
+                cancelled.as_os_str(),
+            ],
+            directory.path(),
+            b"",
+            Duration::from_secs(2),
+            &BTreeMap::new(),
+            false,
+            Some(&cancelled),
+        )
+        .unwrap_err();
+        assert!(cancelled.exists());
+        assert!(error.to_string().contains("cancelled"));
+        Ok(())
+    }
+
+    #[test]
+    fn stalled_process_exceeds_its_timeout() {
+        let error = execute(
+            OsStr::new("sh"),
+            ["-c", "while :; do :; done"],
+            Path::new("."),
+            b"",
+            Duration::from_millis(100),
+            &BTreeMap::new(),
+            false,
+            None,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("timeout"));
+    }
+
+    #[test]
+    fn combined_output_accepts_the_limit_and_rejects_overflow() -> Result<()> {
+        let output = execute(
+            OsStr::new("sh"),
+            ["-c", &format!("head -c {MAX_OUTPUT} /dev/zero")],
             Path::new("."),
             b"",
             Duration::from_secs(2),
@@ -312,44 +407,30 @@ mod tests {
             None,
         )?;
         assert_eq!(output.code, 0);
-        assert_eq!(output.stdout, "out");
-        assert_eq!(output.stderr, "err");
-        let temporary = tempdir()?;
-        let cancelled = temporary.path().join("cancelled");
-        std::fs::write(&cancelled, b"cancelled\n")?;
-        let error = execute(
-            OsStr::new("sh"),
-            ["-c", "printf should-not-run"],
-            Path::new("."),
-            b"",
-            Duration::from_secs(2),
-            &BTreeMap::new(),
-            false,
-            Some(&cancelled),
-        )
-        .expect_err("cancelled work must not start");
-        assert!(error.to_string().contains("cancelled"));
-        let live_marker = temporary.path().join("live-cancelled");
-        let writer = {
-            let live_marker = live_marker.clone();
-            thread::spawn(move || {
-                thread::sleep(Duration::from_millis(25));
-                std::fs::write(live_marker, b"cancelled\n")
-            })
-        };
-        let error = execute(
-            OsStr::new("sh"),
-            ["-c", "while :; do :; done"],
-            Path::new("."),
-            b"",
-            Duration::from_secs(2),
-            &BTreeMap::new(),
-            false,
-            Some(&live_marker),
-        )
-        .expect_err("active work must stop when cancelled");
-        writer.join().unwrap()?;
-        assert!(error.to_string().contains("cancelled"));
+        assert_eq!(output.stdout.len(), MAX_OUTPUT);
+        assert!(output.stderr.is_empty());
+        for command in [
+            format!("head -c {} /dev/zero", MAX_OUTPUT + 1),
+            format!("head -c {} /dev/zero >&2", MAX_OUTPUT + 1),
+            format!(
+                "head -c {} /dev/zero; head -c {} /dev/zero >&2",
+                MAX_OUTPUT / 2,
+                MAX_OUTPUT / 2 + 1
+            ),
+        ] {
+            let error = execute(
+                OsStr::new("sh"),
+                ["-c", &command],
+                Path::new("."),
+                b"",
+                Duration::from_secs(2),
+                &BTreeMap::new(),
+                false,
+                None,
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("too much output"), "{command}");
+        }
         Ok(())
     }
 

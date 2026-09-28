@@ -732,12 +732,23 @@ mod tests {
     }
 
     #[test]
-    fn temporary_path_type_is_available() {
-        let path = std::path::PathBuf::from("spec.json");
-        assert_eq!(
-            path.extension().and_then(|value| value.to_str()),
-            Some("json")
-        );
+    fn fixed_acceptance_specs_preserve_the_plan_and_refuse_extra_prompts() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("spec.json");
+        let spec = json!({
+            "task": "Fix the parser", "acceptance": ["Reject malformed input"],
+            "scope": ["src"], "checks": ["cargo test"],
+            "acceptance_checks": [{"criterion": 0, "command": "check-parser", "expected_output": "passed", "files": ["tests/parser.rs"]}],
+        });
+        fs::write(&path, spec.to_string())?;
+        let request = load_request(None, Some(&path))?;
+        assert_eq!(request.task, "Fix the parser");
+        assert_eq!(request.checks, ["cargo test"]);
+        assert_eq!(request.plan.as_ref().unwrap().scope, ["src"]);
+        assert_eq!(request.acceptance_checks[0].files, ["tests/parser.rs"]);
+        let error = load_request(Some("Also change the API"), Some(&path)).unwrap_err();
+        assert!(error.to_string().contains("extra prompt"));
+        Ok(())
     }
 
     #[test]
