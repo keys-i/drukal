@@ -39,8 +39,8 @@ jobs:
         with:
           token: ${{ secrets.KOELU_RELEASE_TOKEN }}
           target-branch: main
-          config-file: tools/config/release-please.json
-          manifest-file: tools/config/release-manifest.json
+          config-file: tools/config/release.json
+          manifest-file: tools/config/versions.json
   publish:
     needs: release
     if: >-

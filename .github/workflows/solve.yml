@@ -140,7 +140,10 @@ jobs:
           GH_REPO: ${{ inputs.repo }}
           PRIVATE_REPOSITORY: ${{ inputs.repository-private }}
           PR_NUMBER: ${{ inputs.pr-number }}
-        run: bash koelu-workflow-scripts/.github/workflows/scripts/pr-trust.sh
+        run: |
+          script=koelu-workflow-scripts/.github/workflows/scripts/trust.sh
+          [[ -f "$script" ]] || script=koelu-workflow-scripts/.github/workflows/scripts/pr-trust.sh
+          bash "$script"
 
   review:
     needs: preflight
@@ -234,7 +237,10 @@ jobs:
           GH_REPO: ${{ inputs.repo }}
           PR_NUMBER: ${{ needs.preflight.outputs.number }}
           EXPECTED_HEAD: ${{ steps.pr.outputs.head }}
-        run: bash .github/workflows/scripts/pr-state.sh
+        run: |
+          script=.github/workflows/scripts/state.sh
+          [[ -f "$script" ]] || script=.github/workflows/scripts/pr-state.sh
+          bash "$script"
       - name: Review the diff and current CI evidence
         id: review
         continue-on-error: true

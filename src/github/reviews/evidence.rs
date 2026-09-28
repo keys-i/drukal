@@ -63,11 +63,15 @@ pub(crate) fn release_manifest_version(github: &GitHub, sha: &str) -> Result<[u6
     if !is_sha(sha) {
         bail!("invalid release manifest commit");
     }
-    let text = github
-        .raw_optional(&format!(
+    let mut text =
+        github.raw_optional(&format!("contents/tools/config/versions.json?ref={sha}"))?;
+    // Older base commits still use the original manifest name
+    if text.is_none() {
+        text = github.raw_optional(&format!(
             "contents/tools/config/release-manifest.json?ref={sha}"
-        ))?
-        .ok_or_else(|| anyhow!("release manifest is missing"))?;
+        ))?;
+    }
+    let text = text.ok_or_else(|| anyhow!("release manifest is missing"))?;
     let manifest: Value = serde_json::from_str(&text)?;
     let version = manifest["."]
         .as_str()

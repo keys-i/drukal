@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly policy="$script_dir/gemini-policy.toml"
+readonly policy="$script_dir/policy.toml"
 readonly workspace="$PWD"
 [[ -r "$policy" && -n "${GEMINI_API_KEY:-}" ]] || exit 1
 compgen -G '/etc/gemini-cli/policies/*.toml' > /dev/null && exit 1

@@ -12,7 +12,7 @@ use crate::Result;
 
 use super::{ReportState, Theme};
 
-const KOELU_DUCK_PNG: &[u8] = include_bytes!("../../assets/koelu-app-duck.png");
+const KOELU_DUCK_PNG: &[u8] = include_bytes!("../../assets/duck.png");
 
 pub fn write_report(
     path: &Path,

@@ -640,7 +640,7 @@ mod tests {
 
     #[test]
     fn review_preflight_accepts_forks_without_granting_dependabot_repair_access() -> Result<()> {
-        let source = include_str!("../../../.github/workflows/scripts/pr-trust.sh");
+        let source = include_str!("../../../.github/workflows/scripts/trust.sh");
         let source = source.replace(
             "pull=$(gh api \"repos/$GH_REPO/pulls/$PR_NUMBER\")",
             "pull=\"$PREFLIGHT_TEST_PULL\"",

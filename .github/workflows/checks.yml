@@ -41,11 +41,13 @@ jobs:
       - name: Check formatting
         run: cargo fmt --check
       - name: Check hosted harness boundary
-        run: bash .github/workflows/scripts/gemini-check.sh
+        run: bash .github/workflows/scripts/check.sh
       - name: Lint
         run: cargo clippy --all-targets --all-features --locked -- -D warnings
       - name: Test
         run: cargo test --all-targets --no-fail-fast --locked
+      - name: Test documentation examples
+        run: cargo test --doc --locked
       - name: Build release
         run: cargo build --release --locked
       - name: Cache trusted Koelu binary

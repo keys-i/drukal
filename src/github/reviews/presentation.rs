@@ -64,6 +64,7 @@ pub fn decision(
                     "Cargo.toml"
                         | "Cargo.lock"
                         | "docs/CHANGELOG.md"
+                        | "tools/config/versions.json"
                         | "tools/config/release-manifest.json"
                 )
             ) {
@@ -695,6 +696,19 @@ mod tests {
         context["mergeable"] = json!(true);
         context["mergeable_state"] = json!("clean");
         assert_eq!(decision(&review, &context, &[], None)?.0, "APPROVE");
+        for filename in [
+            "tools/config/versions.json",
+            "tools/config/release-manifest.json",
+        ] {
+            context["files"] = serde_json::json!([{"filename": filename}]);
+            assert_eq!(
+                decision(&review, &context, &[], None)?.0,
+                "APPROVE",
+                "{filename}"
+            );
+        }
+        context["files"] = serde_json::json!([{"filename": "src/main.rs"}]);
+        assert_eq!(decision(&review, &context, &[], None)?.0, "COMMENT");
         Ok(())
     }
 

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/koelu-poster.webp" alt="Koelu's duck at a terminal" width="760">
+  <img src="docs/assets/poster.webp" alt="Koelu's duck at a terminal" width="760">
 </p>
 
 Koelu helps with the work around a GitHub repo. Ask it about an issue or PR, get a review of your changes, or let it repair a stuck Cargo Dependabot update. You decide what gets merged.
