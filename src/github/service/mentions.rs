@@ -475,7 +475,9 @@ fn hosted_config(
         model: env::var("KOELU_MODEL")
             .ok()
             .filter(|value| !value.is_empty()),
-        model_choices: Vec::new(),
+        model_choices: agent::routing::parse_model_choices(
+            &env::var("KOELU_MODEL_CHOICES").unwrap_or_default(),
+        ),
         review_model: None,
         plan: None,
         acceptance_checks: vec![AcceptanceCheck {

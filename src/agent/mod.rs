@@ -13,7 +13,10 @@ use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
 pub use evaluate::{evaluate, evaluate_cancellable, worker_message};
-pub use harness::{AgentCommand, command, executable, run, run_cancellable, split_command, which};
+pub use harness::{
+    AgentCommand, command, executable, model_environment, run, run_cancellable, split_command,
+    which,
+};
 pub use process::{MAX_OUTPUT, ProcessOutput, execute, safe_environment};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]

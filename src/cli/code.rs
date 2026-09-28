@@ -23,10 +23,12 @@ pub(crate) struct CodeArgs {
     #[arg(long, default_value = ".")]
     directory: PathBuf,
 
+    /// Set the planner model, or the worker model when no choices are given
     #[arg(long)]
     model: Option<String>,
 
-    #[arg(long = "model-choice", action = clap::ArgAction::Append)]
+    /// Assign task models from this fast-to-deep list, including hf:namespace/model
+    #[arg(long = "model-choice", action = clap::ArgAction::Append, env = "KOELU_MODEL_CHOICES", value_delimiter = ',')]
     model_choices: Vec<String>,
 
     #[arg(long)]

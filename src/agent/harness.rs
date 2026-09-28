@@ -54,6 +54,50 @@ pub fn executable(harness: Harness) -> Result<PathBuf> {
     Ok(binary)
 }
 
+fn huggingface_model(model: Option<&str>) -> Result<Option<&str>> {
+    let Some(model) = model.and_then(|value| value.strip_prefix("hf:")) else {
+        return Ok(None);
+    };
+    let Some((namespace, name)) = model.split_once('/') else {
+        bail!("Hugging Face models must use hf:namespace/model");
+    };
+    let (repository, provider) = name.split_once(':').unwrap_or((name, "fastest"));
+    if namespace.is_empty()
+        || matches!(namespace, "." | "..")
+        || repository.is_empty()
+        || matches!(repository, "." | "..")
+        || provider.is_empty()
+        || provider.contains(':')
+        || name.contains('/')
+        || model.len() > 200
+        || !model.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'/' | b':')
+        })
+    {
+        bail!("invalid Hugging Face model identifier");
+    }
+    Ok(Some(model))
+}
+
+pub fn model_environment(
+    model: Option<&str>,
+    harness: Harness,
+) -> Result<BTreeMap<String, String>> {
+    let Some(_) = huggingface_model(model)? else {
+        return Ok(BTreeMap::new());
+    };
+    if harness != Harness::Codex {
+        bail!("Hugging Face model choices require the Codex harness");
+    }
+    let token =
+        env::var("HF_TOKEN").map_err(|_| anyhow!("set HF_TOKEN for Hugging Face models"))?;
+    if token.is_empty() || token.len() > 4_096 || !token.bytes().all(|byte| byte.is_ascii_graphic())
+    {
+        bail!("HF_TOKEN must be a bounded, nonempty token");
+    }
+    Ok(BTreeMap::from([("HF_TOKEN".to_owned(), token)]))
+}
+
 #[derive(Debug)]
 pub struct AgentCommand {
     pub program: OsString,
@@ -77,6 +121,10 @@ pub fn command(
     if !(1..=8).contains(&agents) {
         bail!("use between 1 and 8 Koelu agents");
     }
+    let hf_model = huggingface_model(model)?;
+    if hf_model.is_some() && harness != Harness::Codex {
+        bail!("Hugging Face model choices require the Codex harness");
+    }
     if harness == Harness::Command {
         let setting = command_setting(read_only);
         let arguments = split_command(&env::var(setting).unwrap_or_default())?;
@@ -90,7 +138,12 @@ pub fn command(
             arguments: rest.iter().map(OsString::from).collect(),
         });
     }
-    let binary = executable(harness)?;
+    let binary = if hf_model.is_some() {
+        model_environment(model, harness)?;
+        which("codex").ok_or_else(|| anyhow!("install codex for Hugging Face models"))?
+    } else {
+        executable(harness)?
+    };
     let mut arguments = Vec::<OsString>::new();
     if harness == Harness::Claude {
         let mcp_json = mcp.map_or_else(
@@ -146,7 +199,11 @@ pub fn command(
             "--cd",
             directory.to_string_lossy().as_ref(),
             "-c",
-            "model_provider=\"openai\"",
+            if hf_model.is_some() {
+                "model_provider=\"huggingface\""
+            } else {
+                "model_provider=\"openai\""
+            },
             "-c",
             &format!(
                 "developer_instructions={}",
@@ -161,6 +218,20 @@ pub fn command(
             "-c",
             &mcp,
         ]));
+        if hf_model.is_some() {
+            arguments.extend(os_strings(&[
+                "-c",
+                "model_providers.huggingface.name=\"Hugging Face\"",
+                "-c",
+                "model_providers.huggingface.base_url=\"https://router.huggingface.co/v1\"",
+                "-c",
+                "model_providers.huggingface.env_key=\"HF_TOKEN\"",
+                "-c",
+                "model_providers.huggingface.wire_api=\"responses\"",
+                "-c",
+                "shell_environment_policy.ignore_default_excludes=false",
+            ]));
+        }
         if agents > 1 {
             arguments.extend(os_strings(&[
                 "-c",
@@ -168,7 +239,7 @@ pub fn command(
             ]));
         }
     }
-    if let Some(model) = model {
+    if let Some(model) = hf_model.or(model) {
         arguments.extend(os_strings(&["--model", model]));
     }
     Ok(AgentCommand {
@@ -444,6 +515,32 @@ fn os_strings(values: &[&str]) -> Vec<OsString> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn huggingface_model_ids_are_bounded_and_explicit() {
+        for (model, expected) in [
+            (
+                "hf:openai/gpt-oss-120b:groq",
+                Some("openai/gpt-oss-120b:groq"),
+            ),
+            (
+                "hf:Qwen/Qwen3-Coder-480B-A35B-Instruct",
+                Some("Qwen/Qwen3-Coder-480B-A35B-Instruct"),
+            ),
+            ("gpt-5", None),
+        ] {
+            assert_eq!(huggingface_model(Some(model)).unwrap(), expected);
+        }
+        for model in [
+            "hf:",
+            "hf:single",
+            "hf:../model",
+            "hf:group/model/extra",
+            "hf:group/model space",
+        ] {
+            assert!(huggingface_model(Some(model)).is_err(), "{model}");
+        }
+    }
 
     #[test]
     fn command_splitter_preserves_quoted_arguments() -> Result<()> {

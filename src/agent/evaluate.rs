@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
@@ -103,7 +102,7 @@ pub fn evaluate_cancellable(
             serde_json::to_string(schema)?
         ));
     }
-    let mut environment = BTreeMap::new();
+    let mut environment = super::harness::model_environment(model, harness)?;
     if harness == Harness::Command {
         environment.insert(
             "KOELU_MODEL".to_owned(),

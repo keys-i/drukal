@@ -313,6 +313,7 @@ jobs:
           GH_TOKEN: ${{ steps.repair-token.outputs.token }}
           KOELU_GEMINI_API_KEY: ${{ secrets.gemini-api-key }}
           KOELU_MODEL: ${{ inputs.model }}
+          KOELU_MODEL_CHOICES: ${{ inputs.model-choices }}
           KOELU_AGENT_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
           KOELU_REVIEW_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
           KOELU_COMMAND_ALLOW_GEMINI: '1'

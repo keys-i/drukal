@@ -10,6 +10,16 @@ const MAX_CHOICES: usize = 8;
 const MAX_CHOICE_CHARS: usize = 200;
 const MAX_TEXT_BYTES: usize = 16_000;
 
+pub fn parse_model_choices(raw: &str) -> Vec<String> {
+    if raw.trim().is_empty() {
+        Vec::new()
+    } else {
+        raw.split(',')
+            .map(|model| model.trim().to_owned())
+            .collect()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Tier {
     Fast,
@@ -281,6 +291,11 @@ mod tests {
 
     #[test]
     fn routes_evidence_and_orders_choices() -> Result<()> {
+        assert_eq!(
+            parse_model_choices("fast, balanced, deep"),
+            ["fast", "balanced", "deep"]
+        );
+        assert!(parse_model_choices(" ").is_empty());
         let choices = ["fast", "balanced", "deep"]
             .into_iter()
             .map(str::to_owned)

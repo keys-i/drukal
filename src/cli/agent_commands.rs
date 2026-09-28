@@ -206,6 +206,9 @@ pub(super) fn auto_repair(arguments: AutoRepairArgs) -> Result<()> {
         .ok_or_else(|| anyhow!("--directory is required for automatic repair"))?;
     let acceptance = "The Dependabot update is preserved and the Rust checks pass".to_owned();
     let check = "cargo test --all-targets --no-fail-fast --locked".to_owned();
+    let model_choices =
+        agent::routing::parse_model_choices(&env::var("KOELU_MODEL_CHOICES").unwrap_or_default());
+    let initial_model = (!model_choices.is_empty()).then_some(0);
     let plan = Plan {
         acceptance: vec![acceptance],
         scope: candidate.scope.clone(),
@@ -217,7 +220,7 @@ pub(super) fn auto_repair(arguments: AutoRepairArgs) -> Result<()> {
             "A maintainer reviews and merges the replacement PR".to_owned(),
         ],
         performance_required: false,
-        model_index: None,
+        model_index: initial_model,
         tasks: vec![Task {
             description:
                 "Repair the verified Dependabot update and its failing test or merge conflict"
@@ -225,7 +228,7 @@ pub(super) fn auto_repair(arguments: AutoRepairArgs) -> Result<()> {
             scope: candidate.scope,
             acceptance: vec![0],
             depends_on: Vec::new(),
-            model_index: None,
+            model_index: initial_model,
         }],
     };
     let config = Config {
@@ -243,7 +246,7 @@ pub(super) fn auto_repair(arguments: AutoRepairArgs) -> Result<()> {
         model: env::var("KOELU_MODEL")
             .ok()
             .filter(|model| !model.is_empty()),
-        model_choices: Vec::new(),
+        model_choices,
         review_model: None,
         plan: Some(plan),
         acceptance_checks: vec![AcceptanceCheck {

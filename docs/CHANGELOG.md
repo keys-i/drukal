@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 (2026-09-28)
+
+- Honour per-task model choices and advance to another model after failed checks
+- Fix free OpenRouter routing, add model failover and reject incomplete provider responses
+- Include response schemas in provider prompts and skip the extra scout call when only one provider is available
+- Follow the requested tone and format without a forced persona or canned openings
+- Put review findings and fixes first, with expandable files and checks
+- Review and flag release pull requests for manual repair
+
 ## [0.6.13](https://github.com/keys-i/koelu/compare/v0.6.12...v0.6.13) (2026-09-27)
 
 - Start Koelu when an authorised `@koelu` comment or eligible pull request arrives, and scan existing pull requests when the central repository changes
