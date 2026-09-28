@@ -136,7 +136,13 @@ fn failed_required_checks(rows: &[Value], required: &[String]) -> Vec<String> {
                 row["name"] == name.as_str()
                     && matches!(
                         row["state"].as_str(),
-                        Some("failure" | "timed_out" | "action_required" | "startup_failure")
+                        Some(
+                            "error"
+                                | "failure"
+                                | "timed_out"
+                                | "action_required"
+                                | "startup_failure"
+                        )
                     )
             })
         })
@@ -197,6 +203,48 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn repairs_recognise_failed_statuses_and_leave_unfinished_checks_alone() {
+        let required = ["test".into()];
+        for state in [
+            "error",
+            "failure",
+            "timed_out",
+            "action_required",
+            "startup_failure",
+        ] {
+            let rows = [json!({"name": "test", "state": state})];
+            assert_eq!(
+                failed_required_checks(&rows, &required),
+                required,
+                "{state}"
+            );
+        }
+        for state in [
+            "success",
+            "neutral",
+            "skipped",
+            "pending",
+            "queued",
+            "in_progress",
+            "waiting",
+            "requested",
+            "cancelled",
+            "unknown",
+        ] {
+            let rows = [json!({"name": "test", "state": state})];
+            assert!(
+                failed_required_checks(&rows, &required).is_empty(),
+                "{state}"
+            );
+        }
+        assert!(failed_required_checks(&[], &required).is_empty());
+        assert!(
+            failed_required_checks(&[json!({"name": "lint", "state": "error"})], &required)
+                .is_empty()
+        );
+    }
 
     #[test]
     fn blockers_and_scope_distinguish_failed_checks_from_pending_checks() {
