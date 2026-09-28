@@ -1,3 +1,5 @@
+//! Read repository state and send requests with the caller’s authorization
+
 use std::collections::BTreeMap;
 use std::env;
 use std::path::Path;
@@ -106,6 +108,9 @@ impl GitHub {
         bail!("GitHub results exceeded the review limit; review manually")
     }
 
+    /// Read every unseen comment from a newest first endpoint and return oldest first
+    ///
+    /// A fetch error or a backlog over 31 pages returns an error rather than partial results
     pub fn pages_after_id(&self, path: &str, after: Option<u64>) -> Result<Vec<Value>> {
         read_comment_pages(after, 31, true, |page| self.page(path, page))
     }
@@ -146,7 +151,8 @@ fn read_comment_pages(
     let mut rows = Vec::new();
     for page in 1..=pages {
         let batch = fetch(page as u64)?;
-        for row in &batch {
+        let last_page = batch.len() < 100;
+        for row in batch {
             let id = row["id"]
                 .as_u64()
                 .ok_or_else(|| anyhow!("GitHub response omitted an item ID"))?;
@@ -154,9 +160,9 @@ fn read_comment_pages(
                 rows.reverse();
                 return Ok(rows);
             }
-            rows.push(row.clone());
+            rows.push(row);
         }
-        if batch.len() < 100 {
+        if last_page {
             rows.reverse();
             return Ok(rows);
         }
@@ -443,10 +449,77 @@ mod tests {
             assert_eq!(ids, ((after.unwrap_or(0) + 1)..=newest).collect::<Vec<_>>());
             assert_eq!(ids.len(), 150);
             assert_eq!(ids.iter().max(), Some(&newest));
-            assert!(read_comment_pages(after, 1, true, fetch).is_err());
-            assert_eq!(read_comment_pages(after, 1, false, fetch)?.len(), 100);
         }
         Ok(())
+    }
+
+    #[test]
+    fn complete_sweeps_refuse_a_partial_backlog() {
+        let error = read_comment_pages(None, 1, true, |_| {
+            Ok((101..=200)
+                .rev()
+                .map(|id| serde_json::json!({"id": id}))
+                .collect())
+        })
+        .unwrap_err();
+        assert!(error.to_string().contains("no cursor was advanced"));
+    }
+
+    #[test]
+    fn reply_windows_keep_the_newest_page_in_conversation_order() -> Result<()> {
+        let comments = read_comment_pages(None, 1, false, |_| {
+            Ok((101..=200)
+                .rev()
+                .map(|id| serde_json::json!({"id": id}))
+                .collect())
+        })?;
+        let ids = comments
+            .iter()
+            .map(|row| row["id"].as_u64().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, (101..=200).collect::<Vec<_>>());
+        Ok(())
+    }
+
+    #[test]
+    fn cursor_stops_fetching_after_the_first_seen_comment() -> Result<()> {
+        let mut fetched = Vec::new();
+        let comments = read_comment_pages(Some(150), 31, true, |page| {
+            fetched.push(page);
+            Ok((101..=200)
+                .rev()
+                .map(|id| serde_json::json!({"id": id}))
+                .collect())
+        })?;
+        assert_eq!(fetched, [1]);
+        assert_eq!(comments.len(), 50);
+        assert_eq!(comments.first().unwrap()["id"], 151);
+        assert_eq!(comments.last().unwrap()["id"], 200);
+        Ok(())
+    }
+
+    #[test]
+    fn malformed_comments_and_fetch_failures_do_not_return_partial_results() {
+        let error = read_comment_pages(None, 31, true, |_| {
+            Ok(vec![
+                serde_json::json!({"id": 2}),
+                serde_json::json!({"id": "invalid"}),
+            ])
+        })
+        .unwrap_err();
+        assert!(error.to_string().contains("item ID"));
+        let error = read_comment_pages(None, 31, true, |page| {
+            if page == 1 {
+                Ok((101..=200)
+                    .rev()
+                    .map(|id| serde_json::json!({"id": id}))
+                    .collect())
+            } else {
+                Err(anyhow!("page fetch failed"))
+            }
+        })
+        .unwrap_err();
+        assert_eq!(error.to_string(), "page fetch failed");
     }
 
     #[test]
