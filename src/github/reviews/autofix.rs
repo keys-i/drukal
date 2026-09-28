@@ -33,17 +33,7 @@ pub(crate) fn candidate(
     if !setup::verified_autofix_configuration(github, &configuration)? {
         bail!("automatic repairs require a verified repository opt-in");
     }
-    let required = configuration["checks"]
-        .as_array()
-        .ok_or_else(|| anyhow!("Koelu configuration has no required checks"))?
-        .iter()
-        .map(|name| {
-            name.as_str()
-                .map(str::to_owned)
-                .ok_or_else(|| anyhow!("invalid required check"))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let required = setup::checks(&required)?;
+    let required = setup::configuration_checks(&configuration)?;
     let (pull, dependency, metadata) = resolve(github, number)?;
     if !dependency
         || metadata.as_ref().is_none_or(|metadata| {

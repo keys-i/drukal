@@ -258,6 +258,21 @@ pub(crate) fn repository_configuration(github: &github::GitHub) -> Result<Option
         .and_then(|content| serde_json::from_str(&content).ok()))
 }
 
+/// Use the same CI names for discovery and repair without dropping invalid entries
+pub(crate) fn configuration_checks(value: &Value) -> Result<Vec<String>> {
+    let names = value["checks"]
+        .as_array()
+        .ok_or_else(|| anyhow!("Koelu configuration has no required checks"))?
+        .iter()
+        .map(|name| {
+            name.as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| anyhow!("Koelu configuration has an invalid required check"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    checks(&names)
+}
+
 pub(crate) fn verified_autofix_configuration(
     github: &github::GitHub,
     value: &Value,
@@ -500,6 +515,29 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     use super::*;
+
+    #[test]
+    fn configured_checks_are_validated_without_dropping_entries() -> Result<()> {
+        assert_eq!(
+            configuration_checks(&json!({"checks": ["test", "lint", "test"]}))?,
+            ["test", "lint"]
+        );
+        for value in [
+            json!({}),
+            json!({"checks": "test"}),
+            json!({"checks": []}),
+            json!({"checks": ["test", null]}),
+            json!({"checks": ["test", 1]}),
+            json!({"checks": [" "]}),
+            json!({"checks": ["test\nother"]}),
+            json!({"checks": ["Koelu dependasolve gate"]}),
+            json!({"checks": ["x".repeat(201)]}),
+            json!({"checks": vec!["test"; 33]}),
+        ] {
+            assert!(configuration_checks(&value).is_err(), "{value}");
+        }
+        Ok(())
+    }
 
     #[test]
     fn source_reference_table_covers_repository_and_commit_edges() {

@@ -68,14 +68,12 @@ where
                 continue;
             }
         };
-        let Some(checks) = configuration["checks"].as_array().map(|checks| {
-            checks
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect::<Vec<_>>()
-        }) else {
-            continue;
+        let checks = match setup::configuration_checks(&configuration) {
+            Ok(checks) => checks,
+            Err(error) => {
+                record_sweep_failure(&mut failures, name, &error);
+                continue;
+            }
         };
         let solver_ref = match solver_ref(&configuration) {
             Some(Ok(source)) => source.joined(),
@@ -96,19 +94,6 @@ where
                 continue;
             }
         };
-        if checks.is_empty()
-            || checks.len() > 32
-            || checks.iter().any(|check| {
-                check.is_empty() || check.len() > 200 || check.starts_with("Koelu dependasolve")
-            })
-        {
-            record_sweep_failure(
-                &mut failures,
-                name,
-                &anyhow!("Koelu configuration has invalid CI evidence names"),
-            );
-            continue;
-        }
         let pulls = match target.and_then(|(_, number)| number) {
             Some(number) => github
                 .api_optional(&format!("pulls/{number}"), None, "GET")

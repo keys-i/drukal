@@ -29,15 +29,11 @@ pub fn checks(values: &[String]) -> Result<Vec<String>> {
         bail!("provide nonempty CI checks that do not name Koelu dependasolve itself");
     }
     let mut seen = BTreeSet::new();
-    let checks = values
+    Ok(values
         .iter()
-        .filter(|value| seen.insert((*value).clone()))
+        .filter(|value| seen.insert(value.as_str()))
         .cloned()
-        .collect::<Vec<_>>();
-    if checks.len() > 32 {
-        bail!("provide at most 32 CI checks");
-    }
-    Ok(checks)
+        .collect())
 }
 
 fn valid_check(value: &str) -> bool {
