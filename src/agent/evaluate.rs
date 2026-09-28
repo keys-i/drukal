@@ -1,3 +1,5 @@
+//! Collect structured agent replies without accepting partial or oversized results
+
 use std::borrow::Cow;
 use std::fs;
 use std::io::Read;
@@ -14,6 +16,7 @@ use super::{Harness, ProcessOutput, Usage};
 const MAX_STRUCTURED_RESPONSE: usize = 64_000;
 
 #[allow(clippy::too_many_arguments)]
+/// Ask for one JSON object and reject missing, partial or oversized replies
 pub fn evaluate(
     prompt: &str,
     schema: &Value,
@@ -40,6 +43,9 @@ pub fn evaluate(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Collect a structured reply while honoring the caller’s cancellation file
+///
+/// Native review tools get read permissions and cannot load additional MCP servers
 pub fn evaluate_cancellable(
     prompt: &str,
     schema: &Value,
@@ -68,19 +74,23 @@ pub fn evaluate_cancellable(
     fs::write(&schema_path, serde_json::to_vec(schema)?)?;
     let mut adjusted_prompt = Cow::Borrowed(prompt);
     if harness == Harness::Codex {
-        command.arguments.extend(os_strings(&[
-            "--ignore-user-config",
-            "-c",
-            "web_search=\"disabled\"",
-            "-c",
-            "mcp_servers={}",
-        ]));
-        if evidence_only {
-            command.arguments.extend(os_strings(&[
-                "--skip-git-repo-check",
+        command.arguments.extend(
+            [
+                "--ignore-user-config",
                 "-c",
-                "features.shell_tool=false",
-            ]));
+                "web_search=\"disabled\"",
+                "-c",
+                "mcp_servers={}",
+            ]
+            .into_iter()
+            .map(std::ffi::OsString::from),
+        );
+        if evidence_only {
+            command.arguments.extend(
+                ["--skip-git-repo-check", "-c", "features.shell_tool=false"]
+                    .into_iter()
+                    .map(std::ffi::OsString::from),
+            );
         }
         command.arguments.extend([
             "--output-schema".into(),
@@ -90,12 +100,16 @@ pub fn evaluate_cancellable(
             "-".into(),
         ]);
     } else if harness == Harness::Claude {
-        command.arguments.extend(os_strings(&[
-            "--output-format",
-            "json",
-            "--json-schema",
-            &serde_json::to_string(schema)?,
-        ]));
+        command.arguments.extend(
+            [
+                "--output-format",
+                "json",
+                "--json-schema",
+                &serde_json::to_string(schema)?,
+            ]
+            .into_iter()
+            .map(std::ffi::OsString::from),
+        );
     } else {
         adjusted_prompt = Cow::Owned(format!(
             "{instructions}\nReturn only JSON matching this schema:\n{}\n{prompt}",
@@ -153,6 +167,7 @@ pub fn evaluate_cancellable(
     Ok(response)
 }
 
+/// Extract the last human answer from the harness’s output format
 pub fn worker_message(output: &ProcessOutput, harness: Harness) -> Result<String> {
     if harness == Harness::Claude {
         let value: Value = serde_json::from_str(&output.stdout)?;
@@ -198,10 +213,6 @@ fn read_structured_response(path: &Path) -> Result<String> {
         .context("agent returned an invalid or missing review; nothing was published")
 }
 
-fn os_strings(values: &[&str]) -> Vec<std::ffi::OsString> {
-    values.iter().map(std::ffi::OsString::from).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +228,16 @@ mod tests {
             fs::write(&path, vec![b'x'; length])?;
             assert_eq!(read_structured_response(&path).is_ok(), accepted, "{name}");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn missing_or_non_utf8_responses_are_rejected() -> Result<()> {
+        let directory = tempdir()?;
+        let path = directory.path().join("reply");
+        assert!(read_structured_response(&path).is_err());
+        fs::write(&path, [0xff])?;
+        assert!(read_structured_response(&path).is_err());
         Ok(())
     }
 }

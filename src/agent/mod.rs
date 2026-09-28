@@ -1,3 +1,5 @@
+//! Run agent tools with bounded output and explicit token budgets
+
 pub mod context;
 mod evaluate;
 mod harness;
@@ -21,6 +23,7 @@ pub use process::{MAX_OUTPUT, ProcessOutput, execute, safe_environment};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
 #[serde(rename_all = "lowercase")]
+/// The installed tool that will run a task
 pub enum Harness {
     Codex,
     Claude,
@@ -47,6 +50,7 @@ pub struct UsageRecord {
 }
 
 #[derive(Debug, Default)]
+/// Token totals retained across calls so retries share the same budget
 pub struct Usage {
     max_tokens: Option<u64>,
     records: Vec<UsageRecord>,
@@ -54,6 +58,26 @@ pub struct Usage {
 }
 
 impl Usage {
+    /// Start a budget shared by every call in a run
+    ///
+    /// Reaching the limit blocks the next call
+    /// A missing usage total also blocks budgeted work
+    ///
+    /// ```
+    /// use koelu::agent::{Harness, Usage};
+    /// use std::collections::BTreeMap;
+    ///
+    /// # fn main() -> koelu::Result<()> {
+    /// let mut usage = Usage::new(Some(10))?;
+    /// usage.before_call()?;
+    /// usage.record(Harness::Command, Some(BTreeMap::from([
+    ///     ("total_tokens".into(), 10),
+    /// ])))?;
+    /// assert_eq!(usage.total_tokens(), 10);
+    /// assert!(usage.before_call().is_err());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(max_tokens: Option<u64>) -> Result<Self> {
         if max_tokens == Some(0) {
             bail!("token budget must be a positive whole number");
@@ -66,13 +90,16 @@ impl Usage {
     }
 
     #[must_use]
+    /// Return the known total without allowing large counters to wrap
     pub fn total_tokens(&self) -> u64 {
         self.records
             .iter()
             .filter_map(|record| record.values.get("total_tokens"))
-            .sum()
+            .copied()
+            .fold(0, u64::saturating_add)
     }
 
+    /// Refuse another call when usage is missing or the budget is spent
     pub fn before_call(&self) -> Result<()> {
         let Some(maximum) = self.max_tokens else {
             return Ok(());
@@ -86,12 +113,18 @@ impl Usage {
         Ok(())
     }
 
+    /// Retain a call’s usage even when it exceeds the budget
+    ///
+    /// A map without `total_tokens` counts as unknown usage
+    /// Budgeted runs return an error rather than treating that call as free
     pub fn record(
         &mut self,
         harness: Harness,
         values: Option<BTreeMap<String, u64>>,
     ) -> Result<()> {
-        let known = values.is_some();
+        let known = values
+            .as_ref()
+            .is_some_and(|values| values.contains_key("total_tokens"));
         if !known {
             self.missing = true;
         }
@@ -103,10 +136,13 @@ impl Usage {
         if !known && self.max_tokens.is_some() {
             bail!("token usage is unavailable, so Koelu cannot enforce the budget");
         }
-        if self
-            .max_tokens
-            .is_some_and(|maximum| self.total_tokens() > maximum)
-        {
+        if self.max_tokens.is_some_and(|maximum| {
+            self.records
+                .iter()
+                .filter_map(|record| record.values.get("total_tokens"))
+                .try_fold(0_u64, |total, count| total.checked_add(*count))
+                .is_none_or(|total| total > maximum)
+        }) {
             bail!("token budget was exceeded");
         }
         Ok(())
@@ -146,6 +182,72 @@ mod tests {
             )
             .expect_err("budget must reject overshoot");
         assert_eq!(usage.total_tokens(), 5);
+        Ok(())
+    }
+
+    #[test]
+    fn exact_budget_stops_the_next_call() -> Result<()> {
+        let mut usage = Usage::new(Some(4))?;
+        usage.before_call()?;
+        usage.record(
+            Harness::Command,
+            Some(BTreeMap::from([("total_tokens".into(), 4)])),
+        )?;
+        assert_eq!(usage.total_tokens(), 4);
+        assert!(
+            usage
+                .before_call()
+                .unwrap_err()
+                .to_string()
+                .contains("exhausted")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn missing_total_cannot_bypass_a_budget() -> Result<()> {
+        let mut usage = Usage::new(Some(4))?;
+        let error = usage
+            .record(Harness::Command, Some(BTreeMap::new()))
+            .unwrap_err();
+        assert!(error.to_string().contains("unavailable"));
+        assert!(!usage.complete(1));
+        assert!(!usage.records()[0].known);
+        assert!(usage.before_call().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn token_totals_do_not_wrap() -> Result<()> {
+        let mut usage = Usage::new(None)?;
+        for total in [u64::MAX, 1] {
+            usage.record(
+                Harness::Command,
+                Some(BTreeMap::from([("total_tokens".into(), total)])),
+            )?;
+        }
+        assert_eq!(usage.total_tokens(), u64::MAX);
+        Ok(())
+    }
+
+    #[test]
+    fn the_largest_budget_still_rejects_an_overflow() -> Result<()> {
+        let mut usage = Usage::new(Some(u64::MAX))?;
+        usage.record(
+            Harness::Command,
+            Some(BTreeMap::from([("total_tokens".into(), u64::MAX - 1)])),
+        )?;
+        usage.before_call()?;
+        let error = usage
+            .record(
+                Harness::Command,
+                Some(BTreeMap::from([("total_tokens".into(), 2)])),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("exceeded"));
+        assert_eq!(usage.total_tokens(), u64::MAX);
+        assert_eq!(usage.records().len(), 2);
+        assert!(usage.before_call().is_err());
         Ok(())
     }
 }

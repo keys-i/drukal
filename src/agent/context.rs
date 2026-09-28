@@ -1,3 +1,7 @@
+//! Load repository guidance and the MCP tools a person has selected
+//!
+//! Guidance stays inside the repository and has fixed file and total size limits
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -108,6 +112,23 @@ pub struct RepositoryContext {
 }
 
 impl RepositoryContext {
+    /// Read guidance without following symlinks or starting MCP tools
+    ///
+    /// MCP servers are included only when selected by name
+    ///
+    /// ```
+    /// use koelu::context::RepositoryContext;
+    ///
+    /// # fn main() -> koelu::Result<()> {
+    /// let directory = tempfile::tempdir()?;
+    /// std::fs::write(directory.path().join("AGENTS.md"), "Keep edits focused")?;
+    /// let context = RepositoryContext::load(directory.path(), &[])?;
+    /// assert_eq!(context.files(), ["AGENTS.md"]);
+    /// assert!(context.guidance().contains("Keep edits focused"));
+    /// assert!(context.mcp().is_none());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn load(root: &Path, selected_mcp: &[String]) -> Result<Self> {
         let mut total = 0;
         let mut files = Vec::new();
@@ -147,7 +168,7 @@ impl RepositoryContext {
             if !seen_skills.insert(skill) {
                 bail!(".koelu/context.json repeats a skill path");
             }
-            let text = read_required(root, Path::new(skill), &mut total)?;
+            let text = read_checked(root, Path::new(skill), &mut total)?;
             files.push(skill.clone());
             sections.push((skill.clone(), text));
         }
@@ -260,10 +281,6 @@ fn read_optional(root: &Path, relative: &Path, total: &mut usize) -> Result<Opti
         Err(error) => Err(error)
             .with_context(|| format!("could not inspect guidance path {}", relative.display())),
     }
-}
-
-fn read_required(root: &Path, relative: &Path, total: &mut usize) -> Result<String> {
-    read_checked(root, relative, total)
 }
 
 fn read_checked(root: &Path, relative: &Path, total: &mut usize) -> Result<String> {

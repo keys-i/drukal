@@ -1,3 +1,7 @@
+//! Build agent arguments and translate each provider’s usage into one format
+//!
+//! Commands are passed as arguments rather than through a shell
+
 use std::collections::BTreeMap;
 use std::env;
 use std::ffi::OsString;
@@ -11,6 +15,7 @@ use super::context::McpConfiguration;
 use super::process::execute;
 use super::{Harness, ProcessOutput, Usage};
 
+/// Find the installed harness and check its native login before running work
 pub fn executable(harness: Harness) -> Result<PathBuf> {
     if harness == Harness::Command {
         let arguments = split_command(&env::var("KOELU_AGENT_COMMAND").unwrap_or_default())?;
@@ -79,6 +84,7 @@ fn huggingface_model(model: Option<&str>) -> Result<Option<&str>> {
     Ok(Some(model))
 }
 
+/// Forward a Hugging Face token only for an explicit Hugging Face model
 pub fn model_environment(
     model: Option<&str>,
     harness: Harness,
@@ -99,12 +105,16 @@ pub fn model_environment(
 }
 
 #[derive(Debug)]
+/// An executable and arguments kept separate from shell parsing
 pub struct AgentCommand {
     pub program: OsString,
     pub arguments: Vec<OsString>,
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Build one agent invocation with its requested tools and permissions
+///
+/// Invalid directories, agent counts and model identifiers fail before launch
 pub fn command(
     directory: &Path,
     instructions: &str,
@@ -150,36 +160,47 @@ pub fn command(
             || "{\"mcpServers\":{}}".to_owned(),
             McpConfiguration::claude_json,
         );
-        arguments.extend(os_strings(&[
-            "--print",
-            "--no-session-persistence",
-            "--append-system-prompt",
-            instructions,
-            "--strict-mcp-config",
-            "--mcp-config",
-            &mcp_json,
-        ]));
+        arguments.extend(
+            [
+                "--print",
+                "--no-session-persistence",
+                "--append-system-prompt",
+                instructions,
+                "--strict-mcp-config",
+                "--mcp-config",
+                &mcp_json,
+            ]
+            .into_iter()
+            .map(std::ffi::OsString::from),
+        );
         if read_only {
-            arguments.extend(os_strings(&[
-                "--permission-mode",
-                "plan",
-                "--tools",
-                if evidence_only { "" } else { "Read,Glob,Grep" },
-            ]));
+            arguments.extend(
+                [
+                    "--permission-mode",
+                    "plan",
+                    "--tools",
+                    if evidence_only { "" } else { "Read,Glob,Grep" },
+                ]
+                .into_iter()
+                .map(std::ffi::OsString::from),
+            );
         } else {
             let tools = if agents > 1 {
                 "Read,Glob,Grep,Edit,Write,Agent"
             } else {
                 "Read,Glob,Grep,Edit,Write"
             };
-            arguments.extend(os_strings(&[
-                "--permission-mode",
-                "acceptEdits",
-                "--tools",
-                tools,
-            ]));
+            arguments.extend(
+                ["--permission-mode", "acceptEdits", "--tools", tools]
+                    .into_iter()
+                    .map(std::ffi::OsString::from),
+            );
             if let Some(mcp) = mcp {
-                arguments.extend(os_strings(&["--allowedTools", &mcp.claude_allowed_tools()]));
+                arguments.extend(
+                    ["--allowedTools", &mcp.claude_allowed_tools()]
+                        .into_iter()
+                        .map(std::ffi::OsString::from),
+                );
             }
         }
     } else {
@@ -187,60 +208,72 @@ pub fn command(
             || "mcp_servers={}".to_owned(),
             McpConfiguration::codex_inline_toml,
         );
-        arguments.extend(os_strings(&[
-            "exec",
-            "--sandbox",
-            if read_only {
-                "read-only"
-            } else {
-                "workspace-write"
-            },
-            "--ephemeral",
-            "--cd",
-            directory.to_string_lossy().as_ref(),
-            "-c",
-            if hf_model.is_some() {
-                "model_provider=\"huggingface\""
-            } else {
-                "model_provider=\"openai\""
-            },
-            "-c",
-            &format!(
-                "developer_instructions={}",
-                serde_json::to_string(instructions)?
-            ),
-            "-c",
-            if agents > 1 {
-                "agents.enabled=true"
-            } else {
-                "agents.enabled=false"
-            },
-            "-c",
-            &mcp,
-        ]));
+        arguments.extend(
+            [
+                "exec",
+                "--sandbox",
+                if read_only {
+                    "read-only"
+                } else {
+                    "workspace-write"
+                },
+                "--ephemeral",
+                "--cd",
+                directory.to_string_lossy().as_ref(),
+                "-c",
+                if hf_model.is_some() {
+                    "model_provider=\"huggingface\""
+                } else {
+                    "model_provider=\"openai\""
+                },
+                "-c",
+                &format!(
+                    "developer_instructions={}",
+                    serde_json::to_string(instructions)?
+                ),
+                "-c",
+                if agents > 1 {
+                    "agents.enabled=true"
+                } else {
+                    "agents.enabled=false"
+                },
+                "-c",
+                &mcp,
+            ]
+            .into_iter()
+            .map(std::ffi::OsString::from),
+        );
         if hf_model.is_some() {
-            arguments.extend(os_strings(&[
-                "-c",
-                "model_providers.huggingface.name=\"Hugging Face\"",
-                "-c",
-                "model_providers.huggingface.base_url=\"https://router.huggingface.co/v1\"",
-                "-c",
-                "model_providers.huggingface.env_key=\"HF_TOKEN\"",
-                "-c",
-                "model_providers.huggingface.wire_api=\"responses\"",
-                "-c",
-                "shell_environment_policy.ignore_default_excludes=false",
-            ]));
+            arguments.extend(
+                [
+                    "-c",
+                    "model_providers.huggingface.name=\"Hugging Face\"",
+                    "-c",
+                    "model_providers.huggingface.base_url=\"https://router.huggingface.co/v1\"",
+                    "-c",
+                    "model_providers.huggingface.env_key=\"HF_TOKEN\"",
+                    "-c",
+                    "model_providers.huggingface.wire_api=\"responses\"",
+                    "-c",
+                    "shell_environment_policy.ignore_default_excludes=false",
+                ]
+                .into_iter()
+                .map(std::ffi::OsString::from),
+            );
         }
         if agents > 1 {
-            arguments.extend(os_strings(&[
-                "-c",
-                &format!("agents.max_concurrent_threads_per_session={}", agents - 1),
-            ]));
+            arguments.extend(
+                [
+                    "-c",
+                    &format!("agents.max_concurrent_threads_per_session={}", agents - 1),
+                ]
+                .into_iter()
+                .map(std::ffi::OsString::from),
+            );
         }
     }
     if let Some(model) = hf_model.or(model) {
-        arguments.extend(os_strings(&["--model", model]));
+        arguments.extend(["--model", model].into_iter().map(std::ffi::OsString::from));
     }
     Ok(AgentCommand {
         program: binary.into_os_string(),
@@ -283,13 +316,20 @@ pub fn run_cancellable(
     if let Some(usage) = usage.as_deref() {
         usage.before_call()?;
     }
-    if harness == Harness::Codex && !contains_argument(&command.arguments, "--json") {
+    if harness == Harness::Codex && !command.arguments.iter().any(|value| value == "--json") {
         command.arguments.push("--json".into());
     }
-    if harness == Harness::Claude && !contains_argument(&command.arguments, "--output-format") {
-        command
+    if harness == Harness::Claude
+        && !command
             .arguments
-            .extend(os_strings(&["--output-format", "json"]));
+            .iter()
+            .any(|value| value == "--output-format")
+    {
+        command.arguments.extend(
+            ["--output-format", "json"]
+                .into_iter()
+                .map(std::ffi::OsString::from),
+        );
     }
     let command_environment = if harness == Harness::Command {
         command_environment(
@@ -370,12 +410,35 @@ fn command_environment(
     Ok(environment)
 }
 
+/// Split configured arguments without executing shell syntax
+///
+/// Quotes and escapes group arguments
+/// Unfinished quotes or escapes return an error
+///
+/// ```
+/// use koelu::agent::split_command;
+///
+/// assert_eq!(split_command("tool --name 'two words'")?, ["tool", "--name", "two words"]);
+/// assert!(split_command("tool 'unfinished").is_err());
+/// assert_eq!(split_command("tool $(whoami)")?, ["tool", "$(whoami)"]);
+/// assert_eq!(split_command("tool ''")?, ["tool", ""]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn split_command(value: &str) -> Result<Vec<String>> {
     let mut arguments = Vec::new();
     let mut current = String::new();
     let mut quote = None;
     let mut escape = false;
+    let mut started = false;
     for character in value.chars() {
+        if character.is_whitespace() && quote.is_none() && !escape {
+            if started {
+                arguments.push(std::mem::take(&mut current));
+                started = false;
+            }
+            continue;
+        }
+        started = true;
         if escape {
             current.push(character);
             escape = false;
@@ -389,10 +452,6 @@ pub fn split_command(value: &str) -> Result<Vec<String>> {
             } else {
                 current.push(character);
             }
-        } else if character.is_whitespace() && quote.is_none() {
-            if !current.is_empty() {
-                arguments.push(std::mem::take(&mut current));
-            }
         } else {
             current.push(character);
         }
@@ -400,7 +459,7 @@ pub fn split_command(value: &str) -> Result<Vec<String>> {
     if escape || quote.is_some() {
         bail!("agent command contains an incomplete quote or escape");
     }
-    if !current.is_empty() {
+    if started {
         arguments.push(current);
     }
     Ok(arguments)
@@ -445,7 +504,10 @@ fn normalise_usage(raw: &Value, harness: Harness) -> Result<BTreeMap<String, u64
         ("cached_input_tokens".to_owned(), cached),
         ("output_tokens".to_owned(), output),
     ]);
-    let total = if harness == Harness::Claude {
+    let mut total = input
+        .checked_add(output)
+        .ok_or_else(|| anyhow!("agent token usage overflowed"))?;
+    if harness == Harness::Claude {
         let creation = optional_token_count(
             object.get("cache_creation_input_tokens"),
             "cache_creation_input_tokens",
@@ -456,10 +518,11 @@ fn normalise_usage(raw: &Value, harness: Harness) -> Result<BTreeMap<String, u64
         )?;
         values.insert("cache_creation_input_tokens".to_owned(), creation);
         values.insert("cache_read_input_tokens".to_owned(), read);
-        input + output + creation + read
-    } else {
-        input + output
-    };
+        total = total
+            .checked_add(creation)
+            .and_then(|value| value.checked_add(read))
+            .ok_or_else(|| anyhow!("agent token usage overflowed"))?;
+    }
     values.insert("total_tokens".to_owned(), total);
     Ok(values)
 }
@@ -488,7 +551,10 @@ fn codex_usage(output: &str) -> Result<Option<BTreeMap<String, u64>>> {
             let values =
                 normalise_usage(event.get("usage").unwrap_or(&Value::Null), Harness::Codex)?;
             for (name, value) in values {
-                *total.entry(name).or_insert(0) += value;
+                let count = total.entry(name).or_insert(0_u64);
+                *count = count
+                    .checked_add(value)
+                    .ok_or_else(|| anyhow!("agent token usage overflowed"))?;
             }
             found = true;
         }
@@ -504,17 +570,22 @@ fn claude_usage(output: &str) -> Result<Option<BTreeMap<String, u64>>> {
         .transpose()
 }
 
-fn contains_argument(arguments: &[OsString], needle: &str) -> bool {
-    arguments.iter().any(|value| value == needle)
-}
-
-fn os_strings(values: &[&str]) -> Vec<OsString> {
-    values.iter().map(OsString::from).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_usage_rejects_overflow_before_recording_it() {
+        for harness in [Harness::Command, Harness::Codex, Harness::Claude] {
+            let usage = serde_json::json!({"input_tokens": u64::MAX, "output_tokens": 1});
+            assert!(normalise_usage(&usage, harness).is_err(), "{harness:?}");
+        }
+        let turns = [
+            serde_json::json!({"type": "turn.completed", "usage": {"input_tokens": u64::MAX, "output_tokens": 0}}),
+            serde_json::json!({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 0}}),
+        ].map(|turn| turn.to_string()).join("\n");
+        assert!(codex_usage(&turns).is_err());
+    }
 
     #[test]
     fn huggingface_model_ids_are_bounded_and_explicit() {
@@ -548,6 +619,21 @@ mod tests {
             split_command("tool --name 'two words'")?,
             ["tool", "--name", "two words"]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn command_splitter_preserves_empty_arguments_and_rejects_unfinished_input() -> Result<()> {
+        assert_eq!(
+            split_command("tool '' --prompt \"\"")?,
+            ["tool", "", "--prompt", ""]
+        );
+        assert_eq!(
+            split_command("tool a\\ b 'quoted\\path'")?,
+            ["tool", "a b", "quoted\\path"]
+        );
+        assert!(split_command("tool 'unfinished").is_err());
+        assert!(split_command("tool trailing\\").is_err());
         Ok(())
     }
 
