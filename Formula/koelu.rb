@@ -2,8 +2,8 @@ class Koelu < Formula
   desc "Checks agent-made changes and reviews Dependabot pull requests"
   homepage "https://github.com/keys-i/koelu"
   url "https://github.com/keys-i/koelu.git",
-      tag: "v0.7.0"
-  version "0.7.0"
+      tag: "v0.7.2"
+  version "0.7.2"
   license "MIT"
 
   depends_on "rust" => :build
