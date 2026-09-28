@@ -11,9 +11,9 @@
   <img src="docs/assets/koelu-poster.webp" alt="Koelu's duck at a terminal" width="760">
 </p>
 
-Koelu is a small GitHub service for repositories: it answers `@koelu` and reviews eligible Dependabot pull requests. You keep the final merge.
+Koelu helps with the work around a GitHub repo. Ask it about an issue or PR, get a review of your changes, or let it repair a stuck Cargo Dependabot update. You decide what gets merged.
 
-Koelu takes its name from the koel, an Indian songbird. The duck stays at the keyboard. Say it “KOH-loo.”
+The name comes from the koel, an Indian songbird. The duck stays at the keyboard. Say it “KOH-loo.”
 
 ## Install
 
@@ -22,68 +22,102 @@ cargo install koelu --locked
 koelu --help
 ```
 
-With Homebrew:
+If you use Homebrew
 
 ```sh
 brew tap keys-i/koelu https://github.com/keys-i/koelu
 brew install keys-i/koelu/koelu
 ```
 
-Coming from Rady or Pekin? Follow the [migration steps](docs/UPGRADING.md).
-
-Or build a checkout with Rust 1.85+:
+Or build a checkout with Rust 1.85+
 
 ```sh
 cargo build --release --locked
 target/release/koelu --help
 ```
 
+Coming from Rady or Pekin? See the [upgrade guide](docs/UPGRADING.md).
+
 ## Connect a repository
 
-1. Install the **Koelu** GitHub App for the repository.
+1. Install the **Koelu** GitHub App for your repository.
 2. Read the [Terms](docs/TERMS.md) and [Privacy policy](docs/PRIVACY.md).
-3. Run setup as a repository administrator:
+3. As a repository administrator, run
 
 ```sh
 koelu setup --repo owner/repo --check test --accept-terms
 ```
 
-Setup previews what it will do, writes a small public `.github/koelu.toml`, creates a closed consent receipt, and adds Dependabot configuration only when it is missing. It never copies service credentials into the repository or changes branch protection. Review and commit the generated files. Existing `.github/koelu.json` files remain readable during migration; remove the old file after committing the TOML replacement.
+Setup writes `.github/koelu.toml`, records your agreement in a closed issue, and adds Dependabot config if it is missing. Review and commit the generated files. Service credentials stay in the central service, and setup leaves your branch protection alone.
 
-`koelu dependasolve` is the scriptable setup form. It is not a direct review command:
+<details>
+<summary>Other setup options</summary>
+
+`koelu dependasolve` runs setup from a script. It configures the repository without starting a PR review.
 
 ```sh
 koelu dependasolve --repo owner/repo --check test --apply --accept-terms
 ```
 
-Omit `--solver-ref` to use the source setup resolves; provide `keys-i/koelu@40_CHARACTER_COMMIT_SHA` only when deliberately holding a known release.
+Setup chooses the solver revision. To pin a specific commit, pass `--solver-ref keys-i/koelu@COMMIT_SHA` with a full 40-character commit SHA.
 
-## What happens after setup
+Older `.github/koelu.json` files still work during migration. Remove yours after committing the TOML replacement.
 
-The central `keys-i/koelu` service polls a bounded recent window of consented installations. Mentions and discovery use short-lived, installation-scoped tokens with only the permissions needed for that operation. Each selected review receives a repository-scoped token.
+</details>
 
-Review windows rotate fairly across eligible pull requests. Koelu honours the configured source pin, verifies Dependabot updates, reads the selected CI checks, and leaves unsupported, grouped, or ambiguous updates as a `COMMENT` for human review. Mention and review tokens remain read-only. An administrator may rerun `koelu setup --autofix --accept-terms` to opt in to checked replacement pull requests for signed Cargo updates with merge conflicts or failed required checks. Koelu never edits the Dependabot branch or merges a replacement.
+## Ask Koelu on GitHub
 
-Ask in an issue or pull request:
+Start an issue or PR comment with either name
 
 ```text
 @koelu What changed here, and what should I check?
+@koelu[bot] Review this line
 ```
 
-Replies are concise and read-only. Polling is not real time; work begins on a later service cycle.
+A newline after the name works too. Owners, members and collaborators can send requests. Inline PR questions get a reply in the same thread, using the selected line and diff as context.
 
-## Ask for a change
+Conversation mentions in `keys-i/koelu` start a run directly, as do inline mentions on PRs opened from its own branches. Other installed repositories and inline comments on fork PRs use the scheduled scan every five minutes.
 
-Write requests are deliberate. Start an issue or pull-request comment with `@koelu` and the exact change you want. Koelu records the request, base branch, and base commit, then asks the same person to approve that request by comment ID:
+<details>
+<summary>Why doesn't Koelu appear in the @ picker?</summary>
+
+The App's bot login is `koelu[bot]`, and you can type it in a comment. Supporting that name does not add Koelu to GitHub's autocomplete list. GitHub's [agent-app picker](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/use-agent-apps) is a separate integration that requires agent-app registration and a paid Copilot plan.
+
+</details>
+
+## PR reviews and Dependabot repairs
+
+Koelu reviews open PRs that are not drafts, including contributions from forks. It reads GitHub's diffs and CI results without checking out or running PR code. In `keys-i/koelu`, PR events and completed **Checks** or **Security** runs trigger reviews. Scheduled scans rotate through existing PRs in connected repositories.
+
+Unsupported, grouped or ambiguous dependency updates get a `COMMENT` review for you to decide on. A grouped Cargo update can still qualify for an automatic repair.
+
+To let Koelu repair Cargo Dependabot PRs with merge conflicts or failed required checks, enable autofix
+
+```sh
+koelu setup --repo owner/repo --check test --autofix --accept-terms
+```
+
+This covers verified updates, including signed groups and changes only to `Cargo.lock`, when the full dependency diff fits the repair limit. A failed model review does not stop an eligible repair. Repairs must pass Cargo checks before Koelu opens a replacement PR. The original Dependabot branch stays as it is. You review and merge the replacement.
+
+## Ask for a code change
+
+Post the change you want in an issue or the PR's **Conversation** tab. Koelu records the request and base commit, then asks you to approve it using the request's comment ID.
 
 ```text
 @koelu fix the parser error for empty package names
 @koelu approve 123456789
 ```
 
-Before it does any write work, Koelu rechecks the open conversation, the same-author approval, the recorded request and base revision, and that the author still has write, maintain, or admin access. It uses a short-lived token scoped to that repository, checkpoints each completed step on an isolated `koelu/...` branch, and opens one pull request. It never merges.
+The same person must approve the request and still have write, maintain or admin access. Koelu rechecks the request, approval and base commit before starting. It saves completed steps on a `koelu/...` branch and opens one PR for you to review.
 
-If the base changes, an approval is invalid, access has changed, or checks fail, Koelu stops without changing the default branch. It posts a result when the run finishes; a later service pass marks abandoned claims expired after two hours when the bounded comment scan can find them. Claimed requests are never retried automatically. If a claim has no result, inspect the service run before making a fresh request and approval.
+<details>
+<summary>If a change request stops</summary>
+
+A changed base commit, invalid approval, lost access or failed check stops the request without changing the default branch.
+
+Once a request has started, Koelu does not retry it automatically. If no result appears, check the service's Actions run before submitting another request and approval. Abandoned requests are marked expired after two hours when the service can still find their records in the comment scan.
+
+</details>
 
 ## Work locally
 
@@ -93,20 +127,30 @@ koelu agent ask "where is this parser called?"
 koelu agent follow-up RUN_ID "which failure should I fix first?"
 ```
 
-Use `koelu runs`, `inspect`, `cancel`, `resume`, and `apply` to control retained work. Koelu can load repository guidance, selected skills and MCP servers; its terminal reports render Markdown and mathematics with accessible themes.
+Use `koelu runs`, `inspect`, `cancel`, `resume` and `apply` to find and control your work. Koelu can load repository guidance, skills and MCP servers. Terminal reports support Markdown, mathematics and accessible themes.
 
-Your request and applicable `AGENTS.md` set the task, tone and format. Planners and reviewers read files; workers make scoped edits and run checks. Workers cannot commit, publish or send messages. Koelu handles approved publication after checking the result. The instructions are in the [planner and reviewer](src/delivery/quality.rs), [worker](src/delivery/run.rs), [mentions](src/github/mentions/mod.rs) and [PR review](src/github/reviews/model.rs) source.
+Your request and the applicable `AGENTS.md` set the task, tone and format. Planners and reviewers read files. Workers edit and run checks. Workers cannot commit, publish or send messages. Koelu handles approved publication after checking the result. You can read the instructions for [planning and review](src/delivery/quality.rs), [workers](src/delivery/run.rs), [mentions](src/github/mentions/mod.rs) and [PR reviews](src/github/reviews/model.rs).
 
-For larger jobs, repeat `--model-choice` from fast to deep. By default, Koelu plans with the strongest choice, assigns a model to each task, and advances on failed checks or review. `--model` overrides the planner when choices are present. The Codex harness also accepts `hf:namespace/model` choices from [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers/integrations/codex); choose a model with tool support and set `HF_TOKEN` with Inference Providers permission first. Hosted runs can set `KOELU_MODEL_CHOICES` as a comma-separated list of models supported by their configured harness.
+## Model choices
 
-Hosted read-only answers can use free OpenRouter models when the central service has a `KOELU_OPENROUTER_API_KEY` secret; private repositories also require `KOELU_OPENROUTER_PRIVATE_OK=true`. Koelu tries the free Nemotron endpoint first, then Qwen using [OpenRouter's model failover](https://openrouter.ai/docs/guides/routing/model-fallbacks), requires schema support, and caps token and request prices at zero. Account limits and upstream availability still apply. Deep answers use one model call when only one provider is available. Hosted edits use Gemini CLI, and hosted runners cannot access models installed on your Mac. Hugging Face Inference Providers still require available credits when using `HF_TOKEN`; downloaded public weights can run locally without hosted credits.
+Pass `--model-choice` more than once to give Koelu an ordered list, from fast to deep. It plans with the last choice by default, picks a model for each task, and moves up the list when checks or review fail. `--model` overrides the planner model. Hosted runs use `KOELU_MODEL_CHOICES` for a comma-separated list supported by their harness.
 
-## Safety
+The Codex harness accepts `hf:namespace/model` choices from [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers/integrations/codex). Choose a model with tool support and set `HF_TOKEN` with Inference Providers permission. Hosted inference needs available credits. Downloaded public weights can run locally without those credits.
 
-App credentials stay only in `keys-i/koelu`; they never enter child processes. Mentions and reviews send the issue or PR context to their selected provider. An approved hosted edit runs a constrained provider CLI that may read and send repository files it selects for that task; its selected provider API key reaches only that scrubbed client child, never the target repository, prompt, or logs. Hosted editing stops before launch when a repository contains `.gemini`, `.env`, or `GEMINI.md`, because the harness would otherwise load target-controlled configuration. See [Privacy](docs/PRIVACY.md).
+For free hosted answers, set `KOELU_OPENROUTER_API_KEY` in the central service's secrets. Private repositories also need `KOELU_OPENROUTER_PRIVATE_OK=true`. Koelu tries free Nemotron, then Qwen through [OpenRouter failover](https://openrouter.ai/docs/guides/routing/model-fallbacks). It requires schema support and caps token and request prices at zero. Rate limits and provider availability still apply. With only one provider available, deep answers use one model call.
 
-## Documentation
+Hosted edits use Gemini CLI. Models installed only on your Mac are not available to GitHub's hosted runners.
 
-[Upgrade to Koelu 0.6.9](docs/UPGRADING.md) from Rady or Pekin. The [changelog](docs/CHANGELOG.md) keeps the earlier names as history, not current setup instructions.
+## Privacy and access
 
-For the hosted service, read the current [Terms](docs/TERMS.md) and [Privacy policy](docs/PRIVACY.md). To help with the project, see [Contributing](.github/CONTRIBUTING.md), the [Code of Conduct](.github/CODE_OF_CONDUCT.md), and [Security](.github/SECURITY.md). Maintainers have a [release guide](docs/RELEASING.md). Source code is [MIT licensed](LICENSE).
+GitHub App credentials stay in `keys-i/koelu`. Mention and review tokens can read repository contents, but cannot change them. Tokens are temporary and limited to the installation or repository they need.
+
+Questions and reviews send their issue or PR context to the selected provider. Hosted edits may also send repository files chosen for the task. The provider key is passed only to the model client. It never goes into the repository, prompt or logs.
+
+Hosted editing stops before launch if the repository contains `.gemini`, `.env` or `GEMINI.md`, which could change the harness's configuration. See [Privacy](docs/PRIVACY.md) for the full details.
+
+## More
+
+Read the [changelog](docs/CHANGELOG.md) for the release history, or the [release guide](docs/RELEASING.md) if you maintain Koelu.
+
+To contribute, see [Contributing](.github/CONTRIBUTING.md), the [Code of Conduct](.github/CODE_OF_CONDUCT.md) and [Security](.github/SECURITY.md). The source is [MIT licensed](LICENSE).

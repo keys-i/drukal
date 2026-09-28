@@ -33,18 +33,21 @@ Until the new workflow is deployed, the existing workflow may still read `RADY_A
 koelu setup --repo owner/repo --check test --accept-terms
 ```
 
-The Koelu service agreement uses Terms `2026-09-27-t4` and Privacy `2026-09-27-p4`. Earlier receipts do not cover this version. Setup records a new, closed consent issue and updates the repository's public configuration. `koelu dependasolve --repo owner/repo --check test --apply --accept-terms` is the scriptable equivalent; it configures the repository but does not run a review immediately.
+The current Koelu service agreement uses Terms `2026-09-27-t5` and Privacy `2026-09-27-p5`. Setup records a new, closed consent issue and updates the repository's public configuration. `koelu dependasolve --repo owner/repo --check test --apply --accept-terms` is the scriptable equivalent; it configures the repository but does not run a review immediately.
 
 For automatic Cargo Dependabot repair, update to a version containing the `--autofix` option and rerun `koelu setup --repo owner/repo --check test --autofix --accept-terms`. This records the new `t5`/`p5` agreement and pins the current trusted solver source. Existing `t4`/`p4` receipts keep reviews and individually approved writes running. Review and commit the new `.github/koelu.toml` before expecting replacement pull requests.
 
 After the repository becomes `keys-i/koelu`, use Koelu 0.6.10 or newer for setup. Koelu 0.6.9 still requires the previous trusted repository name.
 
-## What stays the same
+## PRs and mentions
 
-The central service polls rather than replying instantly. A mention can ask a read-only question:
+In `keys-i/koelu`, issue and PR conversation comments trigger the workflow directly. The service also polls installed repositories every five minutes. A mention can ask a read-only question:
 
 ```text
 @koelu What changed here, and what should I check?
+@koelu[bot] Review this line
 ```
 
-An explicit change request still requires the same author to approve the exact proposal before Koelu creates an isolated branch and pull request. Koelu never merges for you. The `keys-i/koelu` source pin, selected checks, and consent receipt remain required for hosted work; changing the product name does not loosen those gates.
+Inline PR mentions reply in the review thread; fork PRs use the scheduled sweep. Koelu reviews open, non-draft PRs from any author without executing PR code. Opted-in Cargo repairs can handle signed group updates and lockfile-only changes; a failed model review no longer prevents the repair attempt.
+
+An explicit change request still requires the same author to approve the exact proposal before Koelu creates an isolated branch and pull request. Put change requests and approvals in the PR's Conversation tab. Koelu never merges for you. The `keys-i/koelu` source pin, selected checks, and consent receipt remain required for hosted work; changing the product name does not loosen those gates.
