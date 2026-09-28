@@ -15,13 +15,13 @@ use crate::agent::session::{self, SessionAnswer, SessionConfig};
 use crate::delivery;
 use crate::ui::{OutputMode, Theme, json_success_document, print_markdown};
 
-mod agent_commands;
 mod code;
-mod repository_setup;
+mod commands;
+mod setup;
 
-use agent_commands::{auto_repair, doctor, native_agent, prepare_repair, resolve, respond, review};
 use code::CodeArgs;
-use repository_setup::{dependasolve, setup};
+use commands::{auto_repair, doctor, native_agent, prepare_repair, resolve, respond, review};
+use setup::{dependasolve, setup as setup_repository};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -426,7 +426,7 @@ where
     })?;
     let output = cli.output;
     let result = match cli.command {
-        Commands::Setup(arguments) => setup(arguments, cli.theme, cli.output),
+        Commands::Setup(arguments) => setup_repository(arguments, cli.theme, cli.output),
         Commands::Code(arguments) => code::run(*arguments, cli.theme, cli.output),
         Commands::Dependasolve(arguments) => dependasolve(arguments, cli.theme, cli.output),
         Commands::Runs => delivery::list_runs(cli.theme, cli.output),

@@ -61,21 +61,21 @@ pub struct Config {
 pub mod benchmark;
 mod evidence;
 mod git;
-mod pull_request;
+mod pull;
 pub mod quality;
 mod retained;
 mod run;
 mod verification;
 
 #[cfg(test)]
-use pull_request::{MAX_PULL_REQUEST_FIELD_BYTES, github_plain_text};
+use pull::{MAX_PULL_REQUEST_FIELD_BYTES, github_plain_text};
 
 use evidence::{Fingerprint, changed_files, evidence, snapshot};
 use git::{
     GitNetworkAuth, checkpoint, git, git_network, git_network_auth, git_network_auth_for_token,
     require_remote_base,
 };
-use pull_request::{markdown_text, pull_request_body, pull_request_title};
+use pull::{markdown_text, pull_request_body, pull_request_title};
 use retained::{Run, retain_candidate, retain_patch};
 pub use retained::{apply_run, cancel_run, inspect_run, list_runs, resume_run};
 use run::deliver_with_auth;

@@ -10,14 +10,14 @@ use serde_json::Value;
 use crate::Result;
 use crate::agent;
 
-mod app_auth;
 pub mod apps;
+mod auth;
 pub mod mentions;
 pub mod reviews;
 pub(crate) mod service;
 pub mod setup;
 
-pub(crate) use app_auth::{
+pub(crate) use auth::{
     InstallationTokenScope, authenticated_app, mint_installation_tokens,
     mint_repository_installation_token, public_app,
 };

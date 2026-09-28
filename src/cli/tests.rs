@@ -1,4 +1,4 @@
-use super::repository_setup::{accept_terms, setup_consent_preview};
+use super::setup::{accept_terms, setup_consent_preview};
 use super::*;
 use crate::setup;
 use anyhow::anyhow;

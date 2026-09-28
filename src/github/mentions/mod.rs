@@ -12,12 +12,12 @@ use crate::agent::{self, Harness};
 use crate::github::GitHub;
 use crate::reviews;
 
+mod comments;
 mod providers;
-mod review_comments;
 mod writes;
 
+pub(crate) use comments::respond as respond_to_review_comment;
 pub(crate) use providers::{hosted_json_answer, is_hosted_unavailable};
-pub(crate) use review_comments::respond as respond_to_review_comment;
 pub(crate) use writes::{
     ApprovedWrite, approved_write, approved_write_with_claim, claim_from_body, claim_marker,
     result_from_body, result_marker,
