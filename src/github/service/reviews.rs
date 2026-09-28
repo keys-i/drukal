@@ -4,7 +4,6 @@ use serde_json::Value;
 
 use crate::Result;
 use crate::github::{self, GitHub};
-use crate::reviews;
 use crate::setup;
 
 use super::{ServeArgs, owner_matches, record_sweep_failure};
@@ -124,19 +123,7 @@ where
             }
         };
         for pull in pulls {
-            let dependabot = pull["user"]["login"] == "dependabot[bot]";
-            let eligible_author = dependabot
-                || reviews::release_version(name, &pull).is_some()
-                || matches!(
-                    pull["author_association"].as_str(),
-                    Some("OWNER" | "MEMBER" | "COLLABORATOR")
-                );
-            if pull["state"] != "open"
-                || pull["draft"].as_bool() != Some(false)
-                || pull["base"]["repo"]["full_name"] != name
-                || pull["head"]["repo"]["full_name"] != name
-                || !eligible_author
-            {
+            if !reviewable_pull(name, &pull) {
                 continue;
             }
             let (Some(number), Some(owner), Some(repository_name)) = (
@@ -177,6 +164,13 @@ where
     Ok(())
 }
 
+fn reviewable_pull(repo: &str, pull: &Value) -> bool {
+    pull["state"] == "open"
+        && pull["draft"].as_bool() == Some(false)
+        && pull["base"]["repo"]["full_name"] == repo
+        && (pull["user"]["login"] != "dependabot[bot]" || pull["head"]["repo"]["full_name"] == repo)
+}
+
 fn service_configuration(github: &GitHub) -> Result<Option<Value>> {
     let Some(configuration) = setup::repository_configuration(github)? else {
         return Ok(None);
@@ -198,7 +192,28 @@ fn solver_ref(configuration: &Value) -> Option<Result<setup::SourceRef>> {
 mod tests {
     use serde_json::json;
 
-    use super::solver_ref;
+    use super::{reviewable_pull, solver_ref};
+
+    #[test]
+    fn reviews_include_external_contributors_and_keep_repairs_in_the_base_repo() {
+        let mut pull = json!({
+            "state": "open", "draft": false,
+            "base": {"repo": {"full_name": "owner/repo"}},
+            "head": {"repo": {"full_name": "contributor/fork"}},
+            "user": {"login": "contributor"}, "author_association": "NONE",
+        });
+        assert!(reviewable_pull("owner/repo", &pull));
+        assert!(!reviewable_pull("other/repo", &pull));
+        pull["draft"] = json!(true);
+        assert!(!reviewable_pull("owner/repo", &pull));
+        pull["draft"] = json!(false);
+        pull["user"]["login"] = json!("dependabot[bot]");
+        assert!(!reviewable_pull("owner/repo", &pull));
+        pull["head"]["repo"]["full_name"] = json!("owner/repo");
+        assert!(reviewable_pull("owner/repo", &pull));
+        pull["state"] = json!("closed");
+        assert!(!reviewable_pull("owner/repo", &pull));
+    }
 
     #[test]
     fn solver_source_is_an_explicit_trusted_commit() {

@@ -478,6 +478,7 @@ fn percent_encode(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::os::unix::fs::PermissionsExt;
 
     use super::*;
 
@@ -634,6 +635,111 @@ mod tests {
         ));
         assert!(orchestrator.contains("permissions:\n  contents: read"));
         assert!(!orchestrator.contains("contents: write"));
+        Ok(())
+    }
+
+    #[test]
+    fn review_preflight_accepts_forks_without_granting_dependabot_repair_access() -> Result<()> {
+        let source = include_str!("../../../.github/workflows/scripts/pr-trust.sh");
+        let source = source.replace(
+            "pull=$(gh api \"repos/$GH_REPO/pulls/$PR_NUMBER\")",
+            "pull=\"$PREFLIGHT_TEST_PULL\"",
+        );
+        assert!(!source.contains("gh "));
+        let temporary = tempfile::tempdir()?;
+        for (author, head_repo, draft, allowed, dependency) in [
+            ("contributor", "contributor/fork", false, true, false),
+            ("contributor", "owner/repo", false, true, false),
+            ("dependabot[bot]", "owner/repo", false, true, true),
+            ("dependabot[bot]", "contributor/fork", false, false, false),
+            ("contributor", "contributor/fork", true, false, false),
+        ] {
+            let output = temporary.path().join("outputs");
+            fs::write(&output, "")?;
+            let pull = json!({
+                "number": 7, "state": "open", "draft": draft,
+                "base": {"repo": {"full_name": "owner/repo"}},
+                "head": {"repo": {"full_name": head_repo}, "sha": "a".repeat(40)},
+                "user": {"login": author}, "author_association": "NONE",
+            });
+            let status = std::process::Command::new("bash")
+                .args(["-c", &source])
+                .env_clear()
+                .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+                .env("GH_REPO", "owner/repo")
+                .env("PR_NUMBER", "7")
+                .env("GITHUB_OUTPUT", &output)
+                .env("PREFLIGHT_TEST_PULL", serde_json::to_string(&pull)?)
+                .status()?;
+            assert_eq!(status.success(), allowed, "{author}: {head_repo}");
+            let output = fs::read_to_string(output)?;
+            assert_eq!(output.contains("allowed=true"), allowed);
+            if allowed {
+                assert!(output.contains(&format!("dependency={dependency}")));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn workflow_completions_review_only_the_associated_pull_request() -> Result<()> {
+        let workflow = include_str!("../../../.github/workflows/orchestrate.yml");
+        assert!(workflow.contains("github.event.workflow_run.pull_requests[0].number > 0"));
+        let step = workflow
+            .split_once("      - name: Find consented pull requests\n")
+            .unwrap()
+            .1;
+        let run = step.split_once("        run: |\n").unwrap().1;
+        let source = run.split_once("\n  review:\n").unwrap().0;
+        let source = source
+            .lines()
+            .map(|line| line.strip_prefix("          ").unwrap_or(line))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let temporary = tempfile::tempdir()?;
+        let binary = temporary.path().join("target/release/koelu");
+        fs::create_dir_all(binary.parent().unwrap())?;
+        fs::write(
+            &binary,
+            "#!/bin/bash\nprintf '%s\\n' \"$@\" > \"$TARGET_TEST_ARGUMENTS\"\nprintf '%s\\n' '{\"include\":[]}'\n",
+        )?;
+        fs::set_permissions(&binary, fs::Permissions::from_mode(0o700))?;
+        for (event, pr, expected) in [
+            (
+                "workflow_run",
+                "7",
+                Some("agent\ntargets\n--max-reviews\n1\n--repo\nowner/repo\n--pr\n7\n"),
+            ),
+            ("workflow_run", "", None),
+            ("workflow_run", "invalid", None),
+            (
+                "push",
+                "",
+                Some("agent\ntargets\n--max-reviews\n10\n--repo\nowner/repo\n"),
+            ),
+        ] {
+            let arguments = temporary.path().join(format!("arguments-{event}-{pr}"));
+            let output = temporary.path().join("outputs");
+            fs::write(&output, "")?;
+            let status = std::process::Command::new("bash")
+                .args(["-c", &source])
+                .current_dir(temporary.path())
+                .env_clear()
+                .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+                .env("GITHUB_EVENT_NAME", event)
+                .env("KOELU_EVENT_PR", pr)
+                .env("GITHUB_RUN_NUMBER", "1")
+                .env("GITHUB_REPOSITORY", "owner/repo")
+                .env("GITHUB_OUTPUT", &output)
+                .env("TARGET_TEST_ARGUMENTS", &arguments)
+                .status()?;
+            assert!(status.success(), "{event}: {pr}");
+            assert_eq!(arguments.exists(), expected.is_some());
+            if let Some(expected) = expected {
+                assert_eq!(fs::read_to_string(arguments)?, expected);
+            }
+            assert!(fs::read_to_string(output)?.contains("has-targets=false"));
+        }
         Ok(())
     }
 
