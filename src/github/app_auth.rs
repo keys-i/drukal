@@ -105,7 +105,7 @@ fn service_token_request(scope: InstallationTokenScope) -> Value {
             "checks": "read",
             "contents": "read",
             "issues": "write",
-            "pull_requests": "read",
+            "pull_requests": "write",
             "statuses": "read"
         }),
         InstallationTokenScope::Targets => serde_json::json!({
@@ -496,6 +496,7 @@ mod tests {
         assert_eq!(mentions["permissions"]["issues"], "write");
         assert_eq!(mentions["permissions"]["checks"], "read");
         assert_eq!(mentions["permissions"]["contents"], "read");
+        assert_eq!(mentions["permissions"]["pull_requests"], "write");
         assert_eq!(
             mentions["permissions"].as_object().map(|value| value.len()),
             Some(6)

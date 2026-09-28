@@ -597,6 +597,7 @@ mod tests {
         }
         assert!(orchestrator.contains("koelu agent serve --once"));
         assert!(orchestrator.contains("issue_comment:\n    types: [created]"));
+        assert!(orchestrator.contains("pull_request_review_comment:\n    types: [created]"));
         assert!(orchestrator.contains(
             "pull_request_target:\n    types: [opened, reopened, synchronize, ready_for_review]"
         ));

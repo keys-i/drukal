@@ -55,6 +55,9 @@ pub(crate) struct ServeArgs {
     comment: Option<u64>,
 
     #[arg(long, hide = true)]
+    review_comment: bool,
+
+    #[arg(long, hide = true)]
     pr: Option<u64>,
 }
 
@@ -101,7 +104,7 @@ fn comment_target(arguments: &ServeArgs) -> Result<Option<(&str, u64, u64)>> {
             github::validate_repository(repo)?;
             Ok(Some((repo, issue, comment)))
         }
-        (None, None, None) => Ok(None),
+        (None, None, None) if !arguments.review_comment => Ok(None),
         _ => bail!("use --repo, --issue and --comment together with --once"),
     }
 }
@@ -211,8 +214,8 @@ pub(crate) fn targets(arguments: ServeArgs) -> Result<()> {
 }
 
 fn pull_target(arguments: &ServeArgs) -> Result<Option<(&str, Option<u64>)>> {
-    if arguments.issue.is_some() || arguments.comment.is_some() {
-        bail!("--issue and --comment are only available with agent serve");
+    if arguments.issue.is_some() || arguments.comment.is_some() || arguments.review_comment {
+        bail!("--issue, --comment and --review-comment are only available with agent serve");
     }
     match (&arguments.repo, arguments.pr) {
         (Some(repo), number) if number.is_none_or(|number| number > 0) => {
@@ -321,8 +324,11 @@ mod tests {
             repo: Some("keys-i/koelu".to_owned()),
             issue: Some(9),
             comment: Some(42),
+            review_comment: false,
             pr: None,
         };
+        assert_eq!(comment_target(&arguments)?, Some(("keys-i/koelu", 9, 42)));
+        arguments.review_comment = true;
         assert_eq!(comment_target(&arguments)?, Some(("keys-i/koelu", 9, 42)));
         arguments.comment = Some(0);
         assert!(comment_target(&arguments).is_err());
@@ -334,6 +340,12 @@ mod tests {
         arguments.once = true;
         arguments.repo = Some("bad/repo/name".to_owned());
         assert!(comment_target(&arguments).is_err());
+        arguments.repo = None;
+        arguments.issue = None;
+        arguments.comment = None;
+        assert!(comment_target(&arguments).is_err());
+        arguments.review_comment = false;
+        assert_eq!(comment_target(&arguments)?, None);
         Ok(())
     }
 
@@ -350,6 +362,7 @@ mod tests {
             repo: Some("keys-i/koelu".to_owned()),
             issue: None,
             comment: None,
+            review_comment: false,
             pr: Some(5),
         };
         assert_eq!(pull_target(&arguments)?, Some(("keys-i/koelu", Some(5))));

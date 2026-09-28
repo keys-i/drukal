@@ -13,9 +13,11 @@ use crate::github::GitHub;
 use crate::reviews;
 
 mod providers;
+mod review_comments;
 mod writes;
 
 pub(crate) use providers::{hosted_json_answer, is_hosted_unavailable};
+pub(crate) use review_comments::respond as respond_to_review_comment;
 pub(crate) use writes::{
     ApprovedWrite, approved_write, approved_write_with_claim, claim_from_body, claim_marker,
     result_from_body, result_marker,
@@ -116,6 +118,7 @@ pub fn respond_for_repository(
                     model,
                     harness,
                     repository_private,
+                    None,
                 )?
             };
             github.api(
@@ -258,6 +261,7 @@ fn answer(
     model: Option<&str>,
     harness: Harness,
     repository_private: Option<bool>,
+    review_comment: Option<&Value>,
 ) -> Result<String> {
     let mut evidence = json!({
         "request": prompt,
@@ -268,7 +272,22 @@ fn answer(
             "url": clipped(issue["html_url"].as_str().unwrap_or_default(), 1_000),
         }
     });
-    evidence["conversation"] = conversation_evidence(comments, comment);
+    evidence["conversation"] = conversation_evidence(
+        comments,
+        if review_comment.is_some() {
+            u64::MAX
+        } else {
+            comment
+        },
+    );
+    if let Some(source) = review_comment {
+        evidence["review_comment"] = json!({
+            "path": clipped(source["path"].as_str().unwrap_or_default(), 1_000),
+            "diff_hunk": clipped(source["diff_hunk"].as_str().unwrap_or_default(), 6_000),
+            "line": source["line"],
+            "commit_id": source["commit_id"],
+        });
+    }
     if issue["pull_request"].is_object() {
         evidence["pull_request"] = pull_evidence(github, number)?;
     }

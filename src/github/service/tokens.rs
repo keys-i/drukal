@@ -272,6 +272,7 @@ mod tests {
                 repo: None,
                 issue: None,
                 comment: None,
+                review_comment: false,
                 pr: None,
             };
             let source = app_credentials(&arguments, environment_key);

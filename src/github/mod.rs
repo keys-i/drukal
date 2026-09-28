@@ -107,7 +107,7 @@ impl GitHub {
     }
 
     pub fn pages_after_id(&self, path: &str, after: Option<u64>) -> Result<Vec<Value>> {
-        self.recent_pages_after_id(path, after, 1)
+        read_comment_pages(after, 31, true, |page| self.page(path, page))
     }
 
     /// Return a bounded newest-first window after a cursor, reordered oldest first
@@ -117,37 +117,7 @@ impl GitHub {
         after: Option<u64>,
         pages: usize,
     ) -> Result<Vec<Value>> {
-        if pages == 0 {
-            return Ok(Vec::new());
-        }
-        let mut rows = Vec::new();
-        for page in 1..=pages {
-            let separator = if path.contains('?') { '&' } else { '?' };
-            let value = self.api(
-                &format!("{path}{separator}per_page=100&page={page}"),
-                None,
-                "GET",
-            )?;
-            let batch = value
-                .as_array()
-                .ok_or_else(|| anyhow!("GitHub response was not a list"))?;
-            for row in batch {
-                let id = row["id"]
-                    .as_u64()
-                    .ok_or_else(|| anyhow!("GitHub response omitted an item ID"))?;
-                if after.is_some_and(|after| id <= after) {
-                    rows.reverse();
-                    return Ok(rows);
-                }
-                rows.push(row.clone());
-            }
-            if batch.len() < 100 {
-                rows.reverse();
-                return Ok(rows);
-            }
-        }
-        rows.reverse();
-        Ok(rows)
+        read_comment_pages(after, pages, false, |page| self.page(path, page))
     }
 
     pub fn page(&self, path: &str, page: u64) -> Result<Vec<Value>> {
@@ -165,6 +135,37 @@ impl GitHub {
             .cloned()
             .ok_or_else(|| anyhow!("GitHub response was not a list"))
     }
+}
+
+fn read_comment_pages(
+    after: Option<u64>,
+    pages: usize,
+    require_complete: bool,
+    mut fetch: impl FnMut(u64) -> Result<Vec<Value>>,
+) -> Result<Vec<Value>> {
+    let mut rows = Vec::new();
+    for page in 1..=pages {
+        let batch = fetch(page as u64)?;
+        for row in &batch {
+            let id = row["id"]
+                .as_u64()
+                .ok_or_else(|| anyhow!("GitHub response omitted an item ID"))?;
+            if after.is_some_and(|after| id <= after) {
+                rows.reverse();
+                return Ok(rows);
+            }
+            rows.push(row.clone());
+        }
+        if batch.len() < 100 {
+            rows.reverse();
+            return Ok(rows);
+        }
+    }
+    if require_complete {
+        bail!("GitHub comment backlog exceeded the sweep limit; no cursor was advanced");
+    }
+    rows.reverse();
+    Ok(rows)
 }
 
 pub fn validate_repository(value: &str) -> Result<()> {
@@ -418,6 +419,35 @@ fn api_with_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn comment_backlogs_cross_pages_without_skipping_unseen_mentions() -> Result<()> {
+        for (after, newest) in [(None, 150), (Some(50), 200)] {
+            let source: Vec<_> = (1..=newest)
+                .rev()
+                .map(|id| serde_json::json!({"id": id}))
+                .collect();
+            let fetch = |page: u64| {
+                Ok(source
+                    .iter()
+                    .skip((page as usize - 1) * 100)
+                    .take(100)
+                    .cloned()
+                    .collect())
+            };
+            let comments = read_comment_pages(after, 31, true, fetch)?;
+            let ids: Vec<_> = comments
+                .iter()
+                .map(|row| row["id"].as_u64().unwrap())
+                .collect();
+            assert_eq!(ids, ((after.unwrap_or(0) + 1)..=newest).collect::<Vec<_>>());
+            assert_eq!(ids.len(), 150);
+            assert_eq!(ids.iter().max(), Some(&newest));
+            assert!(read_comment_pages(after, 1, true, fetch).is_err());
+            assert_eq!(read_comment_pages(after, 1, false, fetch)?.len(), 100);
+        }
+        Ok(())
+    }
 
     #[test]
     fn repository_validation_uses_a_compact_case_table() {

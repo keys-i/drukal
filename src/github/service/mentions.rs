@@ -60,6 +60,16 @@ pub(super) fn respond_to_comment(
     if !accepted {
         bail!("the target repository has no verified Koelu agreement");
     }
+    if arguments.review_comment {
+        return crate::mentions::respond_to_review_comment(
+            &github,
+            issue,
+            comment,
+            model.as_deref(),
+            arguments.harness,
+            repository["private"].as_bool(),
+        );
+    }
     crate::mentions::respond_for_repository(
         &github,
         issue,
@@ -199,6 +209,11 @@ pub(super) fn sweep_with_token(
                 remember_cursor(cursors, name, last);
             }
         }
+        if let Err(error) =
+            sweep_review_comments(arguments, &github, private, model.as_deref(), cursors)
+        {
+            record_sweep_failure(&mut failures, name, &error);
+        }
     }
     if failures.is_empty() {
         return Ok(());
@@ -213,6 +228,65 @@ pub(super) fn sweep_with_token(
         failures.len(),
         failures.join("; ")
     )
+}
+
+fn sweep_review_comments(
+    arguments: &ServeArgs,
+    github: &GitHub,
+    private: Option<bool>,
+    model: Option<&str>,
+    cursors: &mut BTreeMap<String, u64>,
+) -> Result<()> {
+    let key = format!("{}:review-comments", github.repo());
+    let comments = github.pages_after_id(
+        "pulls/comments?sort=created&direction=desc",
+        cursors.get(&key).copied(),
+    )?;
+    let prefix = format!("https://api.github.com/repos/{}/pulls/", github.repo());
+    let mut failures = Vec::new();
+    for comment in &comments {
+        if !matches!(
+            comment["author_association"].as_str(),
+            Some("OWNER" | "MEMBER" | "COLLABORATOR")
+        ) || !comment["body"]
+            .as_str()
+            .is_some_and(crate::mentions::is_invocation)
+        {
+            continue;
+        }
+        let target = comment["pull_request_url"]
+            .as_str()
+            .and_then(|url| url.strip_prefix(&prefix))
+            .and_then(|number| number.parse::<u64>().ok())
+            .filter(|number| *number > 0);
+        let (Some(number), Some(id)) = (target, comment["id"].as_u64().filter(|id| *id > 0)) else {
+            bail!("GitHub returned an invalid pull request mention");
+        };
+        if let Err(error) = crate::mentions::respond_to_review_comment(
+            github,
+            number,
+            id,
+            model,
+            arguments.harness,
+            private,
+        ) {
+            if crate::mentions::is_hosted_unavailable(&error) {
+                return Err(error);
+            }
+            record_sweep_failure(&mut failures, github.repo(), &error);
+        }
+    }
+    if !failures.is_empty() {
+        bail!("PR mention pass: {}", failures.join("; "));
+    }
+    if let Some(last) = comments
+        .iter()
+        .filter_map(|comment| comment["id"].as_u64())
+        .max()
+    {
+        remember_cursor(cursors, &key, last);
+    }
+    Ok(())
 }
 
 fn dispatch_approved_write(
@@ -708,6 +782,7 @@ mod tests {
             repo: None,
             issue: None,
             comment: None,
+            review_comment: false,
             pr: None,
         };
         let approved = crate::mentions::ApprovedWrite {
