@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::env;
 use std::path::Path;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use anyhow::{Context, anyhow, bail};
@@ -178,9 +179,13 @@ fn read_comment_pages(
     Ok(rows)
 }
 
+/// Require an explicit OWNER/REPO before building a GitHub endpoint
 pub fn validate_repository(value: &str) -> Result<()> {
-    let expression = Regex::new(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$")?;
-    if !expression.is_match(value) || matches!(value.split('/').nth(1), Some("." | "..")) {
+    static EXPRESSION: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$")
+            .expect("repository validation regex must compile")
+    });
+    if !EXPRESSION.is_match(value) || matches!(value.split('/').nth(1), Some("." | "..")) {
         bail!("use an explicit OWNER/REPO");
     }
     Ok(())
@@ -240,13 +245,11 @@ fn is_missing_response(stderr: &str, missing: bool) -> bool {
 }
 
 fn github_status(stderr: &str) -> Option<u16> {
-    Regex::new(r"(?i)(?:http(?:/[0-9.]+)?|status(?: code)?)\D{0,12}([1-5][0-9]{2})")
-        .ok()?
-        .captures(stderr)?
-        .get(1)?
-        .as_str()
-        .parse()
-        .ok()
+    static EXPRESSION: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?i)(?:http(?:/[0-9.]+)?|status(?: code)?)\D{0,12}([1-5][0-9]{2})")
+            .expect("GitHub status regex must compile")
+    });
+    EXPRESSION.captures(stderr)?.get(1)?.as_str().parse().ok()
 }
 
 fn github_failure(stderr: &str, code: i32) -> String {
@@ -591,6 +594,17 @@ mod tests {
             ("owner/repo/extra", false),
         ] {
             assert_eq!(validate_repository(value).is_ok(), valid, "{value}");
+        }
+        for (value, valid) in [
+            (format!("{}/{}", "a".repeat(39), "r".repeat(100)), true),
+            (format!("{}/repo", "a".repeat(40)), false),
+            (format!("owner/{}", "r".repeat(101)), false),
+            ("owner/.".to_owned(), false),
+            ("owner/repo\n".to_owned(), false),
+            ("owner/repo\u{0000}".to_owned(), false),
+            ("é/repo".to_owned(), false),
+        ] {
+            assert_eq!(validate_repository(&value).is_ok(), valid, "{value}");
         }
     }
 
