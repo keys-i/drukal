@@ -38,6 +38,26 @@ fn report_renders_rich_markdown_and_escapes_raw_html() -> Result<()> {
 }
 
 #[test]
+fn report_disclosures_render_with_safe_summary_text() -> Result<()> {
+    let html = markdown_html(
+        "<details>\n<summary>Files and checks</summary>\n\n**Checks:** passed\n\n</details>",
+    )?;
+    assert!(html.contains("<details>"));
+    assert!(html.contains("<summary>Files and checks</summary>"));
+    assert!(html.contains("<strong>Checks:</strong>"));
+    assert!(html.contains("</details>"));
+    for source in [
+        "<summary><img src=x onerror=alert(1)></summary>",
+        "<details onclick=alert(1)>\n<summary>unsafe</summary>\n</details>",
+    ] {
+        let html = markdown_html(source)?;
+        assert!(!html.contains("<img"));
+        assert!(!html.contains("<details onclick"));
+    }
+    Ok(())
+}
+
+#[test]
 fn unsafe_links_and_embedded_media_are_neutralised() -> Result<()> {
     let html = markdown_html(
         "[bad](javascript:alert(1)) [good](https://example.com) ![remote](https://example.com/a.png)",
@@ -258,8 +278,8 @@ fn report_theme_matrix_renders_complete_self_contained_documents() -> Result<()>
     ] {
         for (state, state_label) in [
             (ReportState::Active, "Working"),
-            (ReportState::Complete, "Ready to inspect"),
-            (ReportState::Stopped, "Stopped safely"),
+            (ReportState::Complete, "Complete"),
+            (ReportState::Stopped, "Stopped"),
         ] {
             let path = directory.path().join(format!("{theme:?}-{state:?}.html"));
             write_report(
@@ -281,7 +301,7 @@ fn report_theme_matrix_renders_complete_self_contained_documents() -> Result<()>
                 report.contains("alt=\"Koelu duck inspecting a keyboard\""),
                 "{theme:?}"
             );
-            assert!(report.contains("Duck on watch"), "{theme:?}");
+            assert!(report.contains("Run report"), "{theme:?}");
             assert!(report.contains(state_label), "{theme:?} {state:?}");
             assert!(report.contains("data:image/png;base64,"), "{theme:?}");
             assert!(!report.contains("@keyframes duck-idle"), "{theme:?}");

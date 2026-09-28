@@ -35,18 +35,18 @@ pub fn write_report(
         ReportState::Active => (
             "active",
             "Working",
-            "The evidence will stay here as it arrives",
+            "Results appear here as the run progresses",
             r#"role="status" aria-label="Run in progress""#,
         ),
         ReportState::Complete => (
             "complete",
-            "Ready to inspect",
-            "Evidence kept with this run",
+            "Complete",
+            "Results saved with this run",
             r#"role="progressbar" aria-label="Run complete" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100""#,
         ),
         ReportState::Stopped => (
             "stopped",
-            "Stopped safely",
+            "Stopped",
             "Everything collected so far is still here",
             r#"role="status" aria-label="Run stopped""#,
         ),
@@ -163,11 +163,32 @@ fn safe_event<'a>(event: Event<'a>) -> Event<'a> {
         Event::InlineMath(source) => math_event(&source, DisplayStyle::Inline),
         Event::DisplayMath(source) => math_event(&source, DisplayStyle::Block),
         Event::Html(value) | Event::InlineHtml(value)
-            if matches!(value.as_ref(), "<u>" | "</u>" | "<mark>" | "</mark>") =>
+            if matches!(
+                value.trim(),
+                "<u>" | "</u>" | "<mark>" | "</mark>" | "<details>" | "</details>"
+            ) =>
         {
             Event::Html(value)
         }
-        Event::Html(value) | Event::InlineHtml(value) => Event::Text(value),
+        Event::Html(value) | Event::InlineHtml(value) => {
+            let (details, summary) = value
+                .trim()
+                .strip_prefix("<details>")
+                .map_or(("", value.trim()), |summary| {
+                    ("<details>", summary.trim_start())
+                });
+            if let Some(label) = summary
+                .strip_prefix("<summary>")
+                .and_then(|value| value.strip_suffix("</summary>"))
+            {
+                Event::Html(CowStr::Boxed(
+                    format!("{details}<summary>{}</summary>\n", escape_html(label))
+                        .into_boxed_str(),
+                ))
+            } else {
+                Event::Text(value)
+            }
+        }
         Event::Start(Tag::Image { .. }) => Event::Text(CowStr::Borrowed("[Image: ")),
         Event::End(TagEnd::Image) => Event::Text(CowStr::Borrowed("]")),
         Event::Start(Tag::Link {
@@ -336,7 +357,7 @@ const REPORT_TEMPLATE: &str = r#"<!doctype html>
     <header class="rail">
       <div class="identity">
         <span class="duck-frame"><img class="duck" src="{{mascot}}" width="489" height="512" alt="Koelu duck inspecting a keyboard"></span>
-        <span><span class="product">Koelu</span><span class="artifact">Duck on watch · evidence report</span></span>
+        <span><span class="product">Koelu</span><span class="artifact">Run report</span></span>
       </div>
       <div class="stage">
         <h1>{{title}}</h1>

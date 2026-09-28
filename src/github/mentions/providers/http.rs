@@ -156,6 +156,24 @@ fn parse_response(code: i32, output: &str) -> Result<String, ProviderFailure> {
             format!("response exceeded {MAX_RESPONSE_BYTES} bytes"),
         ));
     }
+    if let Some(error) = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|value| value.get("error").filter(|error| !error.is_null()).cloned())
+    {
+        return Err(
+            match error["code"]
+                .as_u64()
+                .and_then(|code| u16::try_from(code).ok())
+                .filter(|code| *code >= 400)
+            {
+                Some(status) => status_failure(0, status, retry_after),
+                None => ProviderFailure::new(
+                    FailureKind::InvalidResponse,
+                    "provider returned an unsuccessful response",
+                ),
+            },
+        );
+    }
     Ok(body.to_owned())
 }
 
@@ -232,6 +250,18 @@ mod tests {
                 "secret provider body\nKOELU_HTTP_STATUS:429\nKOELU_RETRY_AFTER:30",
                 Some(FailureKind::RateLimit),
                 Some("provider rate limit reached (HTTP 429)"),
+            ),
+            (
+                0,
+                "{\"error\":{\"code\":429,\"message\":\"secret provider body\"}}\nKOELU_HTTP_STATUS:200\nKOELU_RETRY_AFTER:30",
+                Some(FailureKind::RateLimit),
+                Some("provider rate limit reached (HTTP 429)"),
+            ),
+            (
+                0,
+                "{\"error\":{\"message\":\"secret provider body\"}}\nKOELU_HTTP_STATUS:200\nKOELU_RETRY_AFTER:",
+                Some(FailureKind::InvalidResponse),
+                Some("provider returned an unsuccessful response"),
             ),
             (
                 28,

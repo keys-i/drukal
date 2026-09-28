@@ -62,7 +62,7 @@ Omit `--solver-ref` to use the source setup resolves; provide `keys-i/koelu@40_C
 
 The central `keys-i/koelu` service polls a bounded recent window of consented installations. Mentions and discovery use short-lived, installation-scoped tokens with only the permissions needed for that operation. Each selected review receives a repository-scoped token.
 
-Review windows rotate fairly across eligible pull requests. Koelu honours the configured source pin, verifies Dependabot evidence, reads the selected CI checks, and leaves unsupported, grouped, or ambiguous updates as a `COMMENT` for human review. Mention and review tokens remain read-only. An administrator may rerun `koelu setup --autofix --accept-terms` to opt in to checked replacement pull requests for signed Cargo updates with merge conflicts or failed required checks. Koelu never edits the Dependabot branch or merges a replacement.
+Review windows rotate fairly across eligible pull requests. Koelu honours the configured source pin, verifies Dependabot updates, reads the selected CI checks, and leaves unsupported, grouped, or ambiguous updates as a `COMMENT` for human review. Mention and review tokens remain read-only. An administrator may rerun `koelu setup --autofix --accept-terms` to opt in to checked replacement pull requests for signed Cargo updates with merge conflicts or failed required checks. Koelu never edits the Dependabot branch or merges a replacement.
 
 Ask in an issue or pull request:
 
@@ -70,7 +70,7 @@ Ask in an issue or pull request:
 @koelu What changed here, and what should I check?
 ```
 
-Replies are concise, evidence-based, and read-only. Polling is not real time; work begins on a later service cycle.
+Replies are concise and read-only. Polling is not real time; work begins on a later service cycle.
 
 ## Ask for a change
 
@@ -95,9 +95,15 @@ koelu agent follow-up RUN_ID "which failure should I fix first?"
 
 Use `koelu runs`, `inspect`, `cancel`, `resume`, and `apply` to control retained work. Koelu can load repository guidance, selected skills and MCP servers; its terminal reports render Markdown and mathematics with accessible themes.
 
+Your request and applicable `AGENTS.md` set the task, tone and format. Planners and reviewers read files; workers make scoped edits and run checks. Workers cannot commit, publish or send messages. Koelu handles approved publication after checking the result. The instructions are in the [planner and reviewer](src/delivery/quality.rs), [worker](src/delivery/run.rs), [mentions](src/github/mentions/mod.rs) and [PR review](src/github/reviews/model.rs) source.
+
+For larger jobs, repeat `--model-choice` from fast to deep. By default, Koelu plans with the strongest choice, assigns a model to each task, and advances on failed checks or review. `--model` overrides the planner when choices are present. The Codex harness also accepts `hf:namespace/model` choices from [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers/integrations/codex); choose a model with tool support and set `HF_TOKEN` with Inference Providers permission first. Hosted runs can set `KOELU_MODEL_CHOICES` as a comma-separated list of models supported by their configured harness.
+
+Hosted read-only answers can use free OpenRouter models when the central service has a `KOELU_OPENROUTER_API_KEY` secret; private repositories also require `KOELU_OPENROUTER_PRIVATE_OK=true`. Koelu tries the free Nemotron endpoint first, then Qwen using [OpenRouter's model failover](https://openrouter.ai/docs/guides/routing/model-fallbacks), requires schema support, and caps token and request prices at zero. Account limits and upstream availability still apply. Deep answers use one model call when only one provider is available. Hosted edits use Gemini CLI, and hosted runners cannot access models installed on your Mac. Hugging Face Inference Providers still require available credits when using `HF_TOKEN`; downloaded public weights can run locally without hosted credits.
+
 ## Safety
 
-App credentials stay only in `keys-i/koelu`; they never enter child processes. Mentions and reviews send bounded evidence to their selected provider. An approved hosted edit runs a constrained provider CLI that may read and send repository files it selects for that task; its selected provider API key reaches only that scrubbed client child, never the target repository, prompt, or logs. Hosted editing stops before launch when a repository contains `.gemini`, `.env`, or `GEMINI.md`, because the harness would otherwise load target-controlled configuration. See [Privacy](docs/PRIVACY.md).
+App credentials stay only in `keys-i/koelu`; they never enter child processes. Mentions and reviews send the issue or PR context to their selected provider. An approved hosted edit runs a constrained provider CLI that may read and send repository files it selects for that task; its selected provider API key reaches only that scrubbed client child, never the target repository, prompt, or logs. Hosted editing stops before launch when a repository contains `.gemini`, `.env`, or `GEMINI.md`, because the harness would otherwise load target-controlled configuration. See [Privacy](docs/PRIVACY.md).
 
 ## Documentation
 

@@ -123,8 +123,11 @@ pub fn render(
     blockers: &[String],
     marker: &str,
 ) -> String {
-    let ready = event == "APPROVE";
-    let head = context["head"].as_str().unwrap_or_default();
+    let head = context["head"]
+        .as_str()
+        .filter(|head| head.len() == 40 && head.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .map(|head| &head[..12])
+        .unwrap_or("unknown");
     let checks = context["checks"]
         .as_array()
         .map(Vec::as_slice)
@@ -134,34 +137,78 @@ pub fn render(
         .map(Vec::as_slice)
         .unwrap_or_default();
     let mut lines = vec![
-        marker.to_owned(),
         format!(
             "### {}",
-            if ready {
-                "Ready to merge"
+            if event == "APPROVE" {
+                "Review passed"
             } else {
                 "Needs attention"
             }
         ),
         String::new(),
-        format!(
-            "Reviewed head: `{}` · CI snapshot: {}",
-            head.chars().take(12).collect::<String>(),
-            ci_snapshot(checks)
-        ),
+        markdown_text(&review.summary),
         String::new(),
+        format!(
+            "**Checks:** {} · **Risk:** {:?} · **Commit:** `{head}`",
+            ci_snapshot(checks),
+            review.risk
+        ),
     ];
-    if ready {
-        lines.push(
-            "Everything Koelu could verify is clear; GitHub still decides whether this branch can merge."
-                .to_owned(),
+    if !blockers.is_empty() {
+        lines.extend([String::new(), "**Fix before merging**".to_owned()]);
+        lines.extend(
+            blockers
+                .iter()
+                .map(|item| format!("- {}", markdown_text(item))),
         );
-    } else {
-        lines.push("This isn’t ready to merge yet.".to_owned());
+        lines.extend([String::new(), next_action(event, blockers).to_owned()]);
     }
-    lines.extend([String::new(), "What changed".to_owned()]);
+    if !review.observations.is_empty() {
+        lines.extend([String::new(), "**Findings**".to_owned()]);
+        lines.extend(
+            review
+                .observations
+                .iter()
+                .map(|item| format!("- {}", markdown_text(item))),
+        );
+    }
+    if !review.minor.is_empty() {
+        lines.extend([
+            String::new(),
+            "<details>".to_owned(),
+            "<summary>Suggestions</summary>".to_owned(),
+            String::new(),
+        ]);
+        lines.extend(
+            review
+                .minor
+                .iter()
+                .map(|item| format!("- {}", markdown_text(item))),
+        );
+        lines.extend([String::new(), "</details>".to_owned()]);
+    }
+    if event != "APPROVE"
+        && context["dependency"].as_bool() == Some(true)
+        && !ci_wait_only(blockers)
+    {
+        lines.extend([
+            String::new(),
+            "<details>".to_owned(),
+            "<summary>Repair instructions</summary>".to_owned(),
+            String::new(),
+        ]);
+        repair_handoff(&mut lines, review, context, blockers);
+        lines.extend([String::new(), "</details>".to_owned()]);
+    }
+    lines.extend([
+        String::new(),
+        "<details>".to_owned(),
+        "<summary>Files and checks</summary>".to_owned(),
+        String::new(),
+        "**Files**".to_owned(),
+    ]);
     if files.is_empty() {
-        lines.push("- No changed-file details were supplied".to_owned());
+        lines.push("- Changed files unavailable".to_owned());
     } else {
         lines.extend(files.iter().take(12).map(|file| {
             format!(
@@ -175,9 +222,9 @@ pub fn render(
             lines.push(format!("- …and {} more files", files.len() - 12));
         }
     }
-    lines.extend([String::new(), "Checks".to_owned()]);
+    lines.extend([String::new(), "**Checks**".to_owned()]);
     if checks.is_empty() {
-        lines.push("- No GitHub check results were supplied".to_owned());
+        lines.push("- Check results unavailable".to_owned());
     } else {
         lines.extend(checks.iter().take(20).map(|item| {
             format!(
@@ -195,47 +242,11 @@ pub fn render(
     }
     lines.extend([
         String::new(),
-        "What to do next".to_owned(),
-        next_action(event, blockers).to_owned(),
+        "Tests were not run during this review.".to_owned(),
         String::new(),
-        markdown_text(&review.summary),
+        "</details>".to_owned(),
     ]);
-    if !review.observations.is_empty() {
-        lines.extend([String::new(), "Notes".to_owned()]);
-    }
-    lines.extend(
-        review
-            .observations
-            .iter()
-            .map(|item| format!("- {}", markdown_text(item))),
-    );
-    if !blockers.is_empty() {
-        lines.extend([String::new(), "Before merge".to_owned()]);
-        lines.extend(
-            blockers
-                .iter()
-                .map(|item| format!("- {}", markdown_text(item))),
-        );
-    }
-    if event != "APPROVE" && context["dependency"].as_bool() == Some(true) {
-        repair_handoff(&mut lines, review, context, blockers);
-    }
-    if !review.minor.is_empty() {
-        lines.extend([String::new(), "Small things".to_owned()]);
-        lines.extend(
-            review
-                .minor
-                .iter()
-                .map(|item| format!("- {}", markdown_text(item))),
-        );
-    }
-    lines.extend([
-        String::new(),
-        format!("Risk: {:?}", review.risk),
-        String::new(),
-        "I reviewed the supplied diff and GitHub check results; I didn’t run tests.".to_owned(),
-    ]);
-    let body = lines[1..]
+    let body = lines
         .join("\n")
         .replace('@', "@\u{200b}")
         .replace("<!--", "&lt;!--");
@@ -297,7 +308,7 @@ fn repair_handoff(
             .cloned(),
     );
     lines.extend([
-        "Fix the blockers below. If code needs to change, open a maintainer replacement PR instead of pushing to the Dependabot branch.".to_owned(),
+        "If code needs to change, open a maintainer replacement PR instead of pushing to the Dependabot branch.".to_owned(),
         String::new(),
         "For the follow-up PR".to_owned(),
         format!("- Source: {}", markdown_text(&source)),
@@ -359,11 +370,11 @@ fn ci_snapshot(checks: &[Value]) -> String {
 
 fn next_action(event: &str, blockers: &[String]) -> &'static str {
     if event == "APPROVE" {
-        "Review the Files changed tab, then use GitHub's Merge control when it is enabled"
+        "Use GitHub's Merge control when it is enabled"
     } else if ci_wait_only(blockers) {
-        "Wait for the named checks to finish on the reviewed head, then rerun Koelu"
+        "Wait for the named checks to finish"
     } else {
-        "Resolve the blockers below, then rerun Koelu on the new head"
+        "Fix the listed problems before merging"
     }
 }
 
@@ -465,9 +476,9 @@ mod tests {
     }
 
     #[test]
-    fn render_leads_with_a_bounded_evidence_snapshot_and_next_action() {
+    fn render_leads_with_findings_and_keeps_files_and_checks_in_details() {
         let review = ModelReview {
-            summary: "Evidence summary".to_owned(),
+            summary: "Per-task model selection now overrides the planner".to_owned(),
             risk: Risk::Low,
             observations: vec![],
             blockers: vec![],
@@ -478,8 +489,8 @@ mod tests {
             (
                 "APPROVE",
                 vec![],
-                "### Ready to merge",
-                "use GitHub's Merge control when it is enabled",
+                "### Review passed",
+                "Per-task model selection now overrides the planner",
             ),
             (
                 "COMMENT",
@@ -491,25 +502,32 @@ mod tests {
                 "COMMENT",
                 vec!["`test` needs attention (failure)".to_owned()],
                 "### Needs attention",
-                "Resolve the blockers below",
+                "Fix the listed problems before merging",
             ),
         ] {
             let body = render(&review, &context, event, &blockers, "<!-- marker -->");
             for expected in [
                 heading,
-                "Reviewed head: `aaaaaaaaaaaa` · CI snapshot: 1/2 checks successful",
-                "What changed",
+                "**Checks:** 1/2 checks successful · **Risk:** Low · **Commit:** `aaaaaaaaaaaa`",
+                "<summary>Files and checks</summary>",
+                "**Files**",
                 "`Cargo.toml` · +2 −1",
                 "`src/lib.rs` · +0 −4",
-                "Checks",
+                "**Checks**",
                 "[test](<https://github.com/owner/repo/actions/runs/1>) — success",
                 "unsafe — failure",
-                "What to do next",
                 action,
             ] {
                 assert!(body.contains(expected), "missing {expected} in {body}");
             }
             assert!(!body.contains("javascript:"));
+            assert!(
+                body.find(&review.summary).unwrap()
+                    < body.find("<summary>Files and checks</summary>").unwrap()
+            );
+            if !blockers.is_empty() {
+                assert!(body.contains("**Fix before merging**"));
+            }
         }
     }
 

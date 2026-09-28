@@ -7,7 +7,6 @@ use crate::Result;
 use crate::agent::context::{McpConfiguration, RepositoryContext};
 use crate::agent::{self, Harness, Usage};
 use crate::github;
-use crate::reviews::model::STYLE;
 use crate::runs::RunStore;
 use crate::ui::{OutputMode, Theme, Ui};
 use anyhow::{anyhow, bail};
