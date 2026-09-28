@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.1](https://github.com/keys-i/koelu/compare/v0.7.0...v0.7.1) (2026-09-29)
+
+- Answer `@koelu` in PR review threads and accept GitHub’s bot mention form
+- Review ready pull requests from all contributors and rerun after CI
+- Repair grouped and lockfile-only Cargo Dependabot updates
+- Shorten source and support filenames while keeping existing solver pins working
+- Remove the obsolete Rady migration crate and simplify agent arguments and token accounting
+- Move fetched GitHub rows without cloning them and reuse compiled validation patterns
+- Rewrite the README and add clearer Rustdocs, doctests and focused regression checks
+
 ## 0.7.0 (2026-09-28)
 
 - Honour per-task model choices and advance to another model after failed checks
