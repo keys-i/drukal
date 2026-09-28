@@ -13,7 +13,7 @@ use regex::Regex;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use self::model::{INSTRUCTIONS, model_review};
+use self::model::{INSTRUCTIONS, ReviewRoute, model_review_with_route};
 use crate::Result;
 use crate::agent::Harness;
 use crate::github::GitHub;
@@ -22,7 +22,7 @@ pub(crate) use evidence::allowed_dependency_path;
 pub use evidence::{
     DependabotMetadata, checks, ci_blockers, compatibility, files_context, resolve,
 };
-pub(crate) use evidence::{release_manifest_version, release_version};
+pub(crate) use evidence::{files_context_with_budget, release_manifest_version, release_version};
 pub use presentation::{decision, render};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,7 +66,9 @@ pub fn review_pr(
         bail!("the PR changed since this workflow started; rerun on the new commit");
     }
     let changed_files = pull["changed_files"].as_u64().unwrap_or_default() as usize;
-    let (files, complete) = files_context(github, number, changed_files)?;
+    let route = ReviewRoute::select(harness);
+    let (files, complete) =
+        files_context_with_budget(github, number, changed_files, route.diff_budget())?;
     let base_ref = text(&pull, &["base", "ref"])?;
     let base_release = release
         .map(|_| release_manifest_version(github, text(&pull, &["base", "sha"])?))
@@ -134,7 +136,7 @@ pub fn review_pr(
         });
     }
     let replacement = (|| -> Result<_> {
-        let result = model_review(&context, model, harness, repository_private)?;
+        let result = model_review_with_route(&context, model, harness, repository_private, route)?;
         let (current, _, _) = resolve(github, number)?;
         if current["head"]["sha"] != context["head"] || current["base"]["sha"] != context["base"] {
             bail!("the PR changed during review; rerun on the new commit");

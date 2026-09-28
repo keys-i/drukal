@@ -52,6 +52,22 @@ pub fn model_review(
     harness: Harness,
     repository_private: Option<bool>,
 ) -> Result<ModelReview> {
+    model_review_with_route(
+        context,
+        model,
+        harness,
+        repository_private,
+        ReviewRoute::select(harness),
+    )
+}
+
+pub(super) fn model_review_with_route(
+    context: &Value,
+    model: Option<&str>,
+    harness: Harness,
+    repository_private: Option<bool>,
+    route: ReviewRoute,
+) -> Result<ModelReview> {
     let schema = json!({
         "type": "object", "additionalProperties": false,
         "properties": {
@@ -64,7 +80,7 @@ pub fn model_review(
         "required": ["summary", "risk", "observations", "blockers", "minor"]
     });
     let evidence = serde_json::to_string(context)?;
-    let response = if harness == Harness::Codex && agent::executable(harness).is_err() {
+    let response = if matches!(route, ReviewRoute::Hosted) {
         crate::mentions::hosted_json_answer(
             &evidence,
             INSTRUCTIONS,
@@ -91,9 +107,39 @@ pub fn model_review(
     Ok(review)
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum ReviewRoute {
+    Hosted,
+    Local,
+}
+
+impl ReviewRoute {
+    pub(super) fn select(harness: Harness) -> Self {
+        if harness == Harness::Codex && agent::executable(harness).is_err() {
+            Self::Hosted
+        } else {
+            Self::Local
+        }
+    }
+
+    pub(super) fn diff_budget(self) -> usize {
+        match self {
+            Self::Hosted => 32_000,
+            Self::Local => 160_000,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fixed_review_routes_keep_their_matching_diff_budget() {
+        for (route, expected) in [(ReviewRoute::Hosted, 32_000), (ReviewRoute::Local, 160_000)] {
+            assert_eq!(route.diff_budget(), expected);
+        }
+    }
 
     #[test]
     fn risk_values_are_strict_and_uppercase() {

@@ -290,19 +290,32 @@ pub fn ci_blockers(
 }
 
 pub fn files_context(github: &GitHub, number: u64, count: usize) -> Result<(Vec<Value>, bool)> {
+    files_context_with_budget(github, number, count, 160_000)
+}
+
+pub(crate) fn files_context_with_budget(
+    github: &GitHub,
+    number: u64,
+    count: usize,
+    budget: usize,
+) -> Result<(Vec<Value>, bool)> {
     let files = github.pages(&format!("pulls/{number}/files"), None)?;
+    Ok(files_evidence(&files, count, budget))
+}
+
+fn files_evidence(files: &[Value], count: usize, budget: usize) -> (Vec<Value>, bool) {
     let mut evidence = Vec::with_capacity(files.len());
     let mut complete = files.len() == count;
-    let mut remaining = 160_000_usize;
+    let mut remaining = budget;
     for file in files {
         let patch = file["patch"].as_str().unwrap_or_default();
-        let covered = patch_evidence_complete(&file, remaining);
+        let covered = patch_evidence_complete(file, remaining);
         complete &= covered;
-        let clipped = if patch.len() <= remaining {
-            patch
-        } else {
-            patch.get(..remaining).unwrap_or_default()
-        };
+        let mut end = patch.len().min(remaining);
+        while !patch.is_char_boundary(end) {
+            end -= 1;
+        }
+        let clipped = &patch[..end];
         let mut item = json!({
             "filename": file["filename"], "status": file["status"],
             "additions": file["additions"], "deletions": file["deletions"],
@@ -314,7 +327,7 @@ pub fn files_context(github: &GitHub, number: u64, count: usize) -> Result<(Vec<
         evidence.push(item);
         remaining = remaining.saturating_sub(patch.len());
     }
-    Ok((evidence, complete))
+    (evidence, complete)
 }
 
 pub fn compatibility(raw: &str) -> Option<f64> {
@@ -450,6 +463,21 @@ fn is_sha(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mention_diff_budget_preserves_partial_unicode_without_claiming_a_full_diff() {
+        let files = vec![json!({
+            "filename": "Cargo.lock", "additions": 1, "deletions": 1,
+            "patch": format!("@@ -1 +1 @@\n-{}\n+new", "x".repeat(160_000)),
+        })];
+        let (evidence, complete) = files_evidence(&files, 1, 32_000);
+        assert!(!complete);
+        assert_eq!(evidence[0]["patch"].as_str().unwrap().len(), 32_000);
+        assert_eq!(evidence[0]["complete"], false);
+        let (evidence, complete) = files_evidence(&[json!({"patch": "🦆🦆"})], 1, 7);
+        assert!(!complete);
+        assert_eq!(evidence[0]["patch"], "🦆");
+    }
 
     #[test]
     fn table_driven_compatibility_and_sha_validation() {
