@@ -91,17 +91,10 @@ impl GitHub {
                 None,
                 "GET",
             )?;
-            let batch = match key {
-                Some(key) => value
-                    .get(key)
-                    .and_then(Value::as_array)
-                    .ok_or_else(|| anyhow!("GitHub response omitted {key}"))?,
-                None => value
-                    .as_array()
-                    .ok_or_else(|| anyhow!("GitHub response was not a list"))?,
-            };
-            rows.extend(batch.iter().cloned());
-            if batch.len() < 100 {
+            let batch = page_rows(value, key)?;
+            let last_page = batch.len() < 100;
+            rows.extend(batch);
+            if last_page {
                 return Ok(rows);
             }
         }
@@ -135,11 +128,22 @@ impl GitHub {
             None,
             "GET",
         )?;
-        value
-            .as_array()
-            .cloned()
-            .ok_or_else(|| anyhow!("GitHub response was not a list"))
+        page_rows(value, None)
     }
+}
+
+/// Keep the fetched rows owned so nested response data is never duplicated
+fn page_rows(mut value: Value, key: Option<&str>) -> Result<Vec<Value>> {
+    let rows = match key {
+        Some(key) => value
+            .get_mut(key)
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| anyhow!("GitHub response omitted {key}"))?,
+        None => value
+            .as_array_mut()
+            .ok_or_else(|| anyhow!("GitHub response was not a list"))?,
+    };
+    Ok(std::mem::take(rows))
 }
 
 fn read_comment_pages(
@@ -366,12 +370,10 @@ pub fn authenticated_pages(endpoint: &str, key: &str, token: &str) -> Result<Vec
             token,
         )?
         .ok_or_else(|| anyhow!("GitHub returned no installed repositories"))?;
-        let batch = value
-            .get(key)
-            .and_then(Value::as_array)
-            .ok_or_else(|| anyhow!("GitHub response omitted {key}"))?;
-        rows.extend(batch.iter().cloned());
-        if batch.len() < 100 {
+        let batch = page_rows(value, Some(key))?;
+        let last_page = batch.len() < 100;
+        rows.extend(batch);
+        if last_page {
             return Ok(rows);
         }
     }
@@ -425,6 +427,62 @@ fn api_with_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn api_pages_preserve_nested_rows_in_response_order() -> Result<()> {
+        for expected in [
+            serde_json::json!([]),
+            serde_json::json!([
+                {"id": 2, "labels": [{"name": "dependency"}], "body": "first"},
+                {"id": 1, "labels": [], "body": "second"}
+            ]),
+        ] {
+            for (response, key) in [
+                (expected.clone(), None),
+                (
+                    serde_json::json!({"check_runs": expected.clone(), "total_count": 2}),
+                    Some("check_runs"),
+                ),
+            ] {
+                assert_eq!(Value::Array(page_rows(response, key)?), expected);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn api_pages_reject_missing_or_malformed_arrays() {
+        for (response, key, message) in [
+            (Value::Null, None, "GitHub response was not a list"),
+            (
+                serde_json::json!({"secret": "private response"}),
+                None,
+                "GitHub response was not a list",
+            ),
+            (
+                serde_json::json!([]),
+                Some("check_runs"),
+                "GitHub response omitted check_runs",
+            ),
+            (
+                serde_json::json!({}),
+                Some("check_runs"),
+                "GitHub response omitted check_runs",
+            ),
+            (
+                serde_json::json!({"check_runs": null}),
+                Some("check_runs"),
+                "GitHub response omitted check_runs",
+            ),
+            (
+                serde_json::json!({"check_runs": {}}),
+                Some("check_runs"),
+                "GitHub response omitted check_runs",
+            ),
+        ] {
+            assert_eq!(page_rows(response, key).unwrap_err().to_string(), message);
+        }
+    }
 
     #[test]
     fn comment_backlogs_cross_pages_without_skipping_unseen_mentions() -> Result<()> {
