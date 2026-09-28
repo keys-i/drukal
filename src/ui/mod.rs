@@ -1,3 +1,5 @@
+//! Show progress and rich text while preserving a predictable machine output mode
+
 use std::cell::Cell;
 use std::io::{self, IsTerminal, Write};
 use std::sync::{Arc, Mutex, mpsc};

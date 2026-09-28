@@ -1,3 +1,5 @@
+//! Reply in the review thread where a trusted PR mention was posted
+
 use anyhow::bail;
 use serde_json::{Value, json};
 

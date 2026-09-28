@@ -1,3 +1,5 @@
+//! Plan, check and retain a change before applying or publishing it
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};

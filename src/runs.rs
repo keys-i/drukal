@@ -1,3 +1,5 @@
+//! Retain runs in private directories with bounded listing and atomic writes
+
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::env;
@@ -40,6 +42,24 @@ impl RunStore {
         Self::at(memory_root())
     }
 
+    /// Open a local run store and refuse a symlink as its root
+    ///
+    /// Newly created directories are private to the current user
+    ///
+    /// ```
+    /// use koelu::runs::RunStore;
+    ///
+    /// # fn main() -> koelu::Result<()> {
+    /// let directory = tempfile::tempdir()?;
+    /// let store = RunStore::at(directory.path())?;
+    /// let run = store.create()?;
+    /// run.write_text("note.txt", "Checked locally")?;
+    /// assert_eq!(run.read_text("note.txt")?, "Checked locally");
+    /// run.cancel()?;
+    /// assert!(run.is_cancelled()?);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn at(root: impl Into<PathBuf>) -> Result<Self> {
         let root = root.into();
         match fs::symlink_metadata(&root) {

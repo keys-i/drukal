@@ -1,3 +1,5 @@
+//! Mint narrowly scoped installation tokens and validate the GitHub App
+
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

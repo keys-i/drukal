@@ -1,3 +1,5 @@
+//! Preview setup and ask for consent before connecting a repository
+
 use std::io::{self, IsTerminal, Write};
 
 use anyhow::bail;

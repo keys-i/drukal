@@ -1,3 +1,5 @@
+//! Review current PR changes and keep eligible repairs separate from model advice
+
 pub(crate) mod autofix;
 mod evidence;
 pub mod model;

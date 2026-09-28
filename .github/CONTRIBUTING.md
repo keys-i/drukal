@@ -1,6 +1,6 @@
 # Contributing
 
-Use Rust 1.85 or newer. Keep changes focused. When behaviour changes, add one compact table-driven test.
+Use Rust 1.85 or newer. Keep changes focused. Test the behaviour you change, including its failure cases. Give each test one clear concern and use small case tables when they help.
 
 Before opening a pull request, run:
 
@@ -8,6 +8,7 @@ Before opening a pull request, run:
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-targets --no-fail-fast --locked
+cargo test --doc --locked
 cargo build --release --locked
 ```
 

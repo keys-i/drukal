@@ -1,3 +1,8 @@
+//! Answer repository questions and turn requested changes into checked work
+//!
+//! Agent calls, GitHub handling and retained runs live in separate modules
+//! The public reexports keep existing integrations working as those modules evolve
+
 pub mod agent;
 pub mod cli;
 pub mod delivery;

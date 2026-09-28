@@ -1,3 +1,5 @@
+//! Connect agent commands to review, repair and local execution
+
 use std::env;
 use std::ffi::OsString;
 use std::fs::OpenOptions;

@@ -1,3 +1,5 @@
+//! Prepare TOML and workflow files without overwriting unrelated content
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -12,6 +14,16 @@ use crate::Result;
 
 const MAX_CONFIGURATION_BYTES: u64 = 64 * 1024;
 
+/// Validate CI names and remove duplicates while keeping their order
+///
+/// ```
+/// use koelu::setup::checks;
+///
+/// assert_eq!(checks(&["test".into(), "lint".into(), "test".into()])?, ["test", "lint"]);
+/// assert!(checks(&[]).is_err());
+/// assert!(checks(&["test\nother".into()]).is_err());
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 pub fn checks(values: &[String]) -> Result<Vec<String>> {
     if values.is_empty() || values.len() > 32 || values.iter().any(|value| !valid_check(value)) {
         bail!("provide nonempty CI checks that do not name Koelu dependasolve itself");
@@ -35,6 +47,25 @@ fn valid_check(value: &str) -> bool {
         && !value.starts_with("Koelu dependasolve")
 }
 
+/// Prepare setup text without writing files or contacting GitHub
+///
+/// Existing Dependabot files are preserved and Koelu’s configuration uses TOML
+/// Returned paths use the canonical repository directory
+///
+/// ```
+/// use koelu::setup::{local_files, SourceRef};
+///
+/// # fn main() -> koelu::Result<()> {
+/// let directory = tempfile::tempdir()?;
+/// let source = SourceRef::parse(&format!("keys-i/koelu@{}", "a".repeat(40)))?;
+/// let files = local_files(directory.path(), &source, &["test".into()], false)?;
+/// let path = directory.path().canonicalize()?.join(".github/koelu.toml");
+/// let config = toml::from_str::<toml::Value>(&files[&path])?;
+/// assert_eq!(config["source"].as_str(), Some(source.joined().as_str()));
+/// assert!(!path.exists());
+/// # Ok(())
+/// # }
+/// ```
 pub fn local_files(
     directory: &Path,
     source: &SourceRef,

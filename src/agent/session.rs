@@ -1,3 +1,5 @@
+//! Keep bounded conversations for repository questions and follow-ups
+
 use std::env;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

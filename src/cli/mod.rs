@@ -1,3 +1,5 @@
+//! Parse human commands and keep machine output in one JSON document
+
 use std::env;
 use std::ffi::OsString;
 use std::fmt;

@@ -1,3 +1,5 @@
+//! Answer trusted mentions and route change requests through approval
+
 use std::env;
 use std::path::Path;
 use std::time::Duration;

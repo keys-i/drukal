@@ -1,3 +1,5 @@
+//! Generate repository setup files and verify consent when applying them
+
 use std::path::Path;
 
 use anyhow::{Context, anyhow, bail};
@@ -20,6 +22,7 @@ pub const TERMS_URL: &str = "https://github.com/keys-i/koelu/blob/main/docs/TERM
 pub const PRIVACY_URL: &str = "https://github.com/keys-i/koelu/blob/main/docs/PRIVACY.md";
 
 #[derive(Clone, Debug)]
+/// A trusted solver repository pinned to one immutable commit
 pub struct SourceRef {
     pub repository: String,
     pub commit: String,
@@ -33,6 +36,18 @@ impl SourceRef {
         }
     }
 
+    /// Parse an explicit solver pin without contacting GitHub
+    ///
+    /// Only Koelu’s repository and a full lowercase commit hash are accepted
+    ///
+    /// ```
+    /// use koelu::setup::SourceRef;
+    ///
+    /// let pin = format!("keys-i/koelu@{}", "a".repeat(40));
+    /// assert_eq!(SourceRef::parse(&pin)?.joined(), pin);
+    /// assert!(SourceRef::parse("keys-i/koelu@main").is_err());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn parse(value: &str) -> Result<Self> {
         let (repository, commit) = value
             .split_once('@')
@@ -404,6 +419,10 @@ fn latest_check_names(runs: &Value, statuses: &Value) -> Result<Vec<String>> {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Preview setup files or apply them after verifying administrator consent
+///
+/// A preview reads local files and leaves them unchanged
+/// Applying setup also checks access and records consent through GitHub
 pub fn run(
     repo: &str,
     source: &SourceRef,

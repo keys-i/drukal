@@ -1,3 +1,5 @@
+//! Turn a coding request into a conversation or a checked change
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;

@@ -1,3 +1,5 @@
+//! Build readable pull requests while keeping untrusted text inert
+
 use anyhow::{anyhow, bail};
 use serde_json::Value;
 
