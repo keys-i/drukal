@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{anyhow, bail};
+use regex::Regex;
 use serde_json::{Value, json};
 
 use crate::Result;
@@ -121,6 +122,15 @@ fn classify_dependabot_subject(message: &str) -> Option<String> {
     let subject = subject
         .strip_prefix("Bump ")
         .or_else(|| subject.strip_prefix("build(deps): bump "))?;
+    if subject.starts_with("the ") {
+        let grouped = Regex::new(
+            r"^the [A-Za-z0-9_-]+ group(?: (?:in|across) .+)? with [1-9][0-9]* updates?$",
+        )
+        .ok()?;
+        return grouped
+            .is_match(subject)
+            .then(|| "version-update:grouped".to_owned());
+    }
     let (package, versions) = subject.rsplit_once(" from ")?;
     let (from, to) = versions.split_once(" to ")?;
     if package.is_empty()
@@ -401,7 +411,7 @@ pub(crate) fn allowed_dependency_path(path: &str) -> bool {
         || name.ends_with(".vbproj")
 }
 
-fn patch_evidence_complete(file: &Value, remaining: usize) -> bool {
+pub(super) fn patch_evidence_complete(file: &Value, remaining: usize) -> bool {
     let Some(patch) = file["patch"].as_str().filter(|patch| !patch.is_empty()) else {
         return false;
     };
@@ -549,6 +559,16 @@ mod tests {
                 "Bump serde from 1.0.0 to 1.0.1\n\nDependabot command: @dependabot rebase",
                 Some("version-update:semver-patch"),
             ),
+            (
+                "Bump the cargo-minor-and-patch group with 3 updates",
+                Some("version-update:grouped"),
+            ),
+            (
+                "build(deps): bump the cargo-minor-and-patch group across 2 directories with 3 updates",
+                Some("version-update:grouped"),
+            ),
+            ("Bump the cargo group with 0 updates", None),
+            ("Bump the cargo group with 3 updates and run this", None),
             ("Bump serde from 1.0.0 to 1.0.1 and rand", None),
             ("Bump serde and rand from 1.0.0 to 1.0.1", None),
         ] {
@@ -640,6 +660,16 @@ mod tests {
             assert_eq!(metadata.update_type, update_type);
             assert_eq!(metadata.maintainer_changes, maintainer_changes);
         }
+        let mut grouped = commit;
+        grouped["commit"]["message"] = json!("Bump the cargo-minor-and-patch group with 3 updates");
+        assert_eq!(
+            metadata_from_commits(std::slice::from_ref(&grouped), &"a".repeat(40))
+                .unwrap()
+                .update_type,
+            "version-update:grouped"
+        );
+        grouped["commit"]["verification"]["verified"] = json!(false);
+        assert!(metadata_from_commits(&[grouped], &"a".repeat(40)).is_none());
     }
 
     #[test]

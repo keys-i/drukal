@@ -237,6 +237,7 @@ jobs:
         run: bash .github/workflows/scripts/pr-state.sh
       - name: Review the diff and current CI evidence
         id: review
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -326,3 +327,8 @@ jobs:
             --repo "$GH_REPO" --pr "$PR_NUMBER" \
             --expected-head "$EXPECTED_HEAD" --expected-base "$EXPECTED_BASE" \
             --directory repair-target
+      - name: Report a failed review after attempting the repair
+        if: always() && steps.review.outcome == 'failure'
+        run: |
+          echo 'The review failed; see the review step logs' >&2
+          exit 1
