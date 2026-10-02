@@ -684,9 +684,10 @@ mod tests {
         );
         assert!(
             orchestrator.contains(
-                "key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}"
+                "key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha || github.sha }}"
             )
         );
+        assert!(orchestrator.contains("needs: [targets, mentions]"));
         assert!(solve.contains(
             "key: koelu-solver-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha }}"
         ));

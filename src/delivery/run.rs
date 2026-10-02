@@ -70,16 +70,7 @@ pub(super) fn deliver_with_auth(
             None => github::api(&format!("repos/{repo}"), None, "GET", false)?
                 .ok_or_else(|| anyhow!("GitHub returned no repository"))?,
         };
-        if info["full_name"]
-            .as_str()
-            .is_none_or(|value| !value.eq_ignore_ascii_case(repo))
-            || info["permissions"]["push"].as_bool() != Some(true)
-        {
-            if hosted_auth.is_some() {
-                bail!("the GitHub App installation needs contents write access to this repository");
-            }
-            bail!("the selected GitHub login needs push access to this repository");
-        }
+        repository_access(&info, repo, hosted_auth.is_some())?;
         base.get_or_insert_with(|| info["default_branch"].as_str().unwrap_or("main").to_owned());
         git(
             &directory,
@@ -102,6 +93,9 @@ pub(super) fn deliver_with_auth(
     };
 
     let branch = format!("koelu/{}", random_hex(6)?);
+    if let (Some(remote), Some(_)) = (origin.as_deref(), hosted_auth.as_ref()) {
+        git::require_push_access(&directory, remote, &branch, network_auth.as_ref())?;
+    }
     let stored = RunStore::open()?.create()?;
     let scratch = stored.path().to_path_buf();
     let workspace = scratch.join("worktree");
@@ -900,6 +894,20 @@ fn run_delivery(
     run.ui.success(url);
     Ok(())
 }
+/// User permissions are absent from App responses, whose write access is checked through Git
+fn repository_access(info: &Value, repo: &str, hosted: bool) -> Result<()> {
+    if info["full_name"]
+        .as_str()
+        .is_none_or(|name| !name.eq_ignore_ascii_case(repo))
+    {
+        bail!("GitHub returned a different repository");
+    }
+    if !hosted && info["permissions"]["push"].as_bool() != Some(true) {
+        bail!("the selected GitHub login needs push access to this repository");
+    }
+    Ok(())
+}
+
 fn configure_hosted_identity(workspace: &Path, cancel_file: Option<&Path>) -> Result<()> {
     git(
         workspace,
@@ -996,6 +1004,18 @@ fn run_worker(
 mod tests {
     use super::*;
     use std::hint::black_box;
+
+    #[test]
+    fn app_repository_responses_do_not_require_user_permissions() {
+        let app = json!({"full_name": "owner/repo"});
+        assert!(repository_access(&app, "owner/repo", true).is_ok());
+        assert!(repository_access(&app, "other/repo", true).is_err());
+        assert!(repository_access(&app, "owner/repo", false).is_err());
+        for push in [false, true] {
+            let user = json!({"full_name": "owner/repo", "permissions": {"push": push}});
+            assert_eq!(repository_access(&user, "owner/repo", false).is_ok(), push);
+        }
+    }
 
     #[test]
     fn model_choices_drive_tasks_and_retries_even_with_a_planner_model() {

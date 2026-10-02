@@ -126,6 +126,20 @@ pub(super) fn require_remote_base(
     Ok(())
 }
 
+/// Ask the receive endpoint to verify access without creating a branch or running repository hooks
+pub(super) fn require_push_access(
+    directory: &Path,
+    remote: &str,
+    branch: &str,
+    auth: Option<&GitNetworkAuth>,
+) -> Result<()> {
+    git_network(directory, &[
+        "-c", "core.hooksPath=/dev/null", "-c", "push.followTags=false",
+        "push", "--dry-run", "--porcelain", remote, &format!("HEAD:refs/heads/{branch}"),
+    ], None, auth).map_err(|_| anyhow!("GitHub couldn't verify push access for the App token; check the installation's Contents write permission and repository access"))?;
+    Ok(())
+}
+
 pub(super) fn parse_remote_ref<'a>(output: &'a str, reference: &str) -> Result<&'a str> {
     let (object_id, received_reference) = output
         .split_once('\t')
@@ -214,6 +228,54 @@ fn base64(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn push_probe_creates_no_remote_ref_and_runs_no_hook() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let remote = root.path().join("remote.git");
+        let directory = root.path().join("checkout");
+        std::fs::create_dir(&directory)?;
+        let remote = remote.to_str().unwrap();
+        git(root.path(), &["init", "--bare", remote], None)?;
+        git(&directory, &["init"], None)?;
+        git(
+            &directory,
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.test",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "initial",
+            ],
+            None,
+        )?;
+        let hook = directory.join(".git/hooks/pre-push");
+        std::fs::write(&hook, "#!/bin/sh\nexit 99\n")?;
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(hook, std::fs::Permissions::from_mode(0o700))?;
+        require_push_access(&directory, remote, "koelu/probe", None)?;
+        assert!(
+            git(
+                root.path(),
+                &[
+                    "--git-dir",
+                    remote,
+                    "show-ref",
+                    "--verify",
+                    "refs/heads/koelu/probe"
+                ],
+                None
+            )
+            .is_err()
+        );
+        assert!(require_push_access(&directory, "missing-remote", "koelu/probe", None).is_err());
+        Ok(())
+    }
 
     #[test]
     fn pinned_base_reference_parser_fails_closed() {

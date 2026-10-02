@@ -113,8 +113,12 @@ jobs:
 
   targets:
     if: >-
-      github.event_name != 'issue_comment' &&
-      github.event_name != 'pull_request_review_comment' &&
+      ((github.event_name != 'issue_comment' && github.event_name != 'pull_request_review_comment') ||
+      (contains(github.event.comment.body, '@koelu') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      ((github.event_name == 'issue_comment' && github.event.issue.pull_request != null) ||
+      (github.event_name == 'pull_request_review_comment' &&
+      github.event.pull_request.head.repo.full_name == github.repository)))) &&
       (github.event_name != 'pull_request_target' ||
       github.event.pull_request.draft == false) &&
       (github.event_name != 'workflow_run' ||
@@ -125,16 +129,28 @@ jobs:
       matrix: ${{ steps.targets.outputs.matrix }}
       has-targets: ${{ steps.targets.outputs.has-targets }}
     steps:
+      - name: Resolve trusted service revision for a PR review mention
+        if: github.event_name == 'pull_request_review_comment'
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH" --jq .sha)
+          [[ "$sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - name: Check out central Koelu service
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ steps.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Restore trusted Koelu binary
         id: binary
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: target/release/koelu
-          key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha || github.sha }}
       - name: Build trusted Koelu
         if: steps.binary.outputs.cache-hit != 'true'
         run: cargo build --release --locked --bin koelu
@@ -144,7 +160,7 @@ jobs:
           KOELU_APP_CLIENT_ID: ${{ vars.KOELU_APP_CLIENT_ID }}
           KOELU_APP_PRIVATE_KEY: ${{ secrets.KOELU_APP_PRIVATE_KEY }}
           KOELU_APP_SLUG: ${{ vars.KOELU_APP_SLUG }}
-          KOELU_EVENT_PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
+          KOELU_EVENT_PR: ${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_RUN_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
@@ -155,7 +171,7 @@ jobs:
           export KOELU_TARGET_SEED="$GITHUB_RUN_NUMBER"
           if [[ "$GITHUB_EVENT_NAME" == workflow_run && ! "$KOELU_EVENT_PR" =~ ^[1-9][0-9]*$ ]]; then
             matrix='{"include":[]}'
-          elif [[ "$GITHUB_EVENT_NAME" == pull_request_target || "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+          elif [[ "$GITHUB_EVENT_NAME" == pull_request_target || "$GITHUB_EVENT_NAME" == workflow_run || "$GITHUB_EVENT_NAME" == issue_comment || "$GITHUB_EVENT_NAME" == pull_request_review_comment ]]; then
             [[ "$KOELU_EVENT_PR" =~ ^[1-9][0-9]*$ ]] || exit 1
             matrix=$(target/release/koelu agent targets --max-reviews 1 \
               --repo "$GITHUB_REPOSITORY" --pr "$KOELU_EVENT_PR")
@@ -174,8 +190,8 @@ jobs:
           fi
 
   review:
-    needs: targets
-    if: needs.targets.outputs.has-targets == 'true'
+    needs: [targets, mentions]
+    if: always() && needs.targets.outputs.has-targets == 'true'
     strategy:
       fail-fast: false
       max-parallel: 4
