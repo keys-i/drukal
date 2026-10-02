@@ -222,7 +222,7 @@ fn extend_approval_evidence(
         if !login.eq_ignore_ascii_case(bot) {
             continue;
         }
-        evidence.proposal |= proposal_from_body(body).is_some_and(|proposal| proposal == *expected);
+        evidence.proposal |= proposals_from_body(body).any(|proposal| proposal == *expected);
         if claim_from_body(body).is_some_and(|claim| claim.approval_comment == approval_comment) {
             evidence.dispatched = true;
             if let Some(id) = comment["id"].as_u64() {
@@ -310,12 +310,13 @@ pub(super) fn proposal_marker(proposal: &WriteProposal) -> String {
     format!("{WRITE_PROPOSAL_MARKER}{payload} -->")
 }
 
-pub(super) fn proposal_from_body(body: &str) -> Option<WriteProposal> {
-    let payload = body
-        .split(WRITE_PROPOSAL_MARKER)
-        .nth(1)?
-        .split_once(" -->")?
-        .0;
+pub(super) fn proposals_from_body(body: &str) -> impl Iterator<Item = WriteProposal> + '_ {
+    body.split(WRITE_PROPOSAL_MARKER)
+        .skip(1)
+        .filter_map(|part| parse_proposal(part.split_once(" -->")?.0))
+}
+
+fn parse_proposal(payload: &str) -> Option<WriteProposal> {
     let value = serde_json::from_str::<Value>(payload).ok()?;
     let proposal = WriteProposal {
         request: value["request"].as_u64().filter(|id| *id > 0)?,
@@ -518,9 +519,33 @@ mod tests {
             sha: "a".repeat(40),
         };
         assert_eq!(
-            proposal_from_body(&proposal_marker(&proposal)),
+            proposals_from_body(&proposal_marker(&proposal)).next(),
             Some(proposal.clone())
         );
+        let mut newer = proposal.clone();
+        newer.request = 43;
+        let combined = format!(
+            "{}\n{}",
+            proposal_marker(&newer),
+            proposal_marker(&proposal)
+        );
+        assert_eq!(
+            proposals_from_body(&combined).collect::<Vec<_>>(),
+            vec![newer, proposal.clone()]
+        );
+        assert!(prior_reply_exists(
+            &[json!({"user": {"login": "koelu[bot]"}, "body": combined})],
+            proposal.request,
+        ));
+        let mut evidence = ApprovalEvidence::default();
+        extend_approval_evidence(
+            &mut evidence,
+            &[json!({"user": {"login": "koelu[bot]"}, "body": combined})],
+            9,
+            &proposal,
+            "koelu[bot]",
+        );
+        assert!(evidence.proposal);
         assert_eq!(
             claim_from_body(&claim_marker(9, 1)),
             Some(WriteClaim {

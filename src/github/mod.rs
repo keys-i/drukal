@@ -15,6 +15,7 @@ use crate::agent;
 
 pub mod apps;
 mod auth;
+pub(crate) mod comments;
 pub mod mentions;
 pub mod reviews;
 pub(crate) mod service;

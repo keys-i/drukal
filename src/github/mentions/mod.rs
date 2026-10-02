@@ -26,7 +26,7 @@ pub(crate) use writes::{
 };
 
 use providers::{answer_from_value, answer_schema, bool_environment, valid_slug};
-use writes::{parse_approval, proposal_from_body, proposal_marker, write_proposal};
+use writes::{parse_approval, proposal_marker, proposals_from_body, write_proposal};
 
 const MAX_COMMENT: usize = 4_000;
 const MAX_ANSWER: usize = 6_000;
@@ -96,13 +96,13 @@ pub fn respond_for_repository(
     match invocation(&prompt.prompt) {
         Invocation::WriteRequest(task) => {
             let proposal = write_proposal(github, comment, &prompt.actor, &task)?;
-            github.api(
-                &format!("issues/{issue}/comments"),
-                Some(&json!({"body": format!(
+            github.reply(
+                issue,
+                &format!(
                     "{}\n\nI can prepare a branch and pull request for this exact request. To approve it, reply `@koelu approve {comment}`.",
                     proposal_marker(&proposal),
-                )})),
-                "POST",
+                ),
+                &format!("{}[bot]", app_slug()),
             )?;
         }
         Invocation::Approve(_) => {}
@@ -123,12 +123,10 @@ pub fn respond_for_repository(
                     None,
                 )?
             };
-            github.api(
-                &format!("issues/{issue}/comments"),
-                Some(
-                    &json!({"body": format!("{}\n\n{}", reply_marker(comment), neutralize(&body))}),
-                ),
-                "POST",
+            github.reply(
+                issue,
+                &format!("{}\n\n{}", reply_marker(comment), neutralize(&body)),
+                &format!("{}[bot]", app_slug()),
             )?;
         }
     }
@@ -166,7 +164,7 @@ fn prior_reply_exists(comments: &[Value], comment: u64) -> bool {
         let body = reply["body"].as_str().unwrap_or_default();
         let login = reply["user"]["login"].as_str().unwrap_or_default();
         (body.contains(&reply_marker(comment))
-            || proposal_from_body(body).is_some_and(|proposal| proposal.request == comment))
+            || proposals_from_body(body).any(|proposal| proposal.request == comment))
             && login.eq_ignore_ascii_case(&bot)
             || body.contains(&legacy_reply_marker(comment))
                 && (login.eq_ignore_ascii_case(&bot)

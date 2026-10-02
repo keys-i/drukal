@@ -8,8 +8,8 @@ use crate::agent::Harness;
 use crate::github::GitHub;
 
 use super::{
-    Invocation, TrustedPrompt, USAGE, answer, invocation, issue_comment_count, issue_is_open,
-    neutralize, prior_reply_exists, recent_comments, reply_marker, trusted_prompt,
+    Invocation, TrustedPrompt, USAGE, answer, app_slug, invocation, issue_comment_count,
+    issue_is_open, neutralize, prior_reply_exists, recent_comments, reply_marker, trusted_prompt,
 };
 
 pub(crate) fn respond(
@@ -67,10 +67,17 @@ pub(crate) fn respond(
     if thread == 0 {
         bail!("GitHub returned an invalid review thread");
     }
-    github.api(
-        &format!("pulls/{number}/comments/{thread}/replies"),
-        Some(&json!({"body": format!("{}\n\n{body}", reply_marker(comment))})),
-        "POST",
+    let current = github.recent_pages_after_id(
+        &format!("pulls/{number}/comments?sort=created&direction=desc"),
+        None,
+        4,
+    )?;
+    github.thread_reply(
+        number,
+        thread,
+        &format!("{}\n\n{body}", reply_marker(comment)),
+        &format!("{}[bot]", app_slug()),
+        &current,
     )?;
     Ok(())
 }

@@ -366,11 +366,7 @@ fn post_dispatch_result(
             terminal_error(error),
         ),
     };
-    github.api(
-        &format!("issues/{issue}/comments"),
-        Some(&serde_json::json!({"body": body})),
-        "POST",
-    )?;
+    github.reply(issue, &body, &format!("{}[bot]", app_slug()))?;
     Ok(())
 }
 

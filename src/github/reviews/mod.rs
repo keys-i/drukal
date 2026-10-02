@@ -19,6 +19,7 @@ use self::model::{INSTRUCTIONS, ReviewRoute, model_review_with_route};
 use crate::Result;
 use crate::agent::Harness;
 use crate::github::GitHub;
+use crate::github::comments::{Response, response_id};
 
 pub(crate) use evidence::allowed_dependency_path;
 pub use evidence::{
@@ -137,6 +138,18 @@ pub fn review_pr(
             published: false,
         });
     }
+    let tail = github.response_tail(number, &login)?;
+    if tail.first().is_some_and(|reply| {
+        reply["__typename"] == "IssueComment"
+            && reply["body"]
+                .as_str()
+                .is_some_and(|body| body.contains(&marker))
+    }) {
+        return Ok(ReviewOutcome {
+            approved: false,
+            published: false,
+        });
+    }
     let replacement = (|| -> Result<_> {
         let result = model_review_with_route(&context, model, harness, repository_private, route)?;
         let (current, _, _) = resolve(github, number)?;
@@ -151,8 +164,18 @@ pub fn review_pr(
         let body = render(&result, &context, event, &blockers, &marker);
         Ok((event, body))
     })();
-    let (event, body) = dismiss_before_publish(replacement, || {
-        for previous in own.into_iter().filter(|item| item["state"] == "APPROVED") {
+    let replacement = replacement
+        .and_then(|(event, body)| Ok((event, body, github.response_tail(number, &login)?)));
+    let (event, body, tail) = dismiss_before_publish(replacement, |(event, _, tail)| {
+        let retained = tail
+            .first()
+            .filter(|reply| Response::Review { head, event }.can_edit(reply))
+            .map(response_id)
+            .transpose()?;
+        for previous in own
+            .into_iter()
+            .filter(|item| item["state"] == "APPROVED" && item["id"].as_u64() != retained)
+        {
             github.api(
                 &format!("pulls/{number}/reviews/{}/dismissals", previous["id"]),
                 Some(&json!({"message": "Rechecking the current diff and CI results"})),
@@ -161,10 +184,12 @@ pub fn review_pr(
         }
         Ok(())
     })?;
-    github.api(
-        &format!("pulls/{number}/reviews"),
-        Some(&json!({"commit_id": head, "event": event, "body": body})),
-        "POST",
+    github.publish_response(
+        number,
+        &body,
+        &login,
+        Response::Review { head, event },
+        &tail,
     )?;
     println!(
         "Published {} for {}",
@@ -180,10 +205,10 @@ pub fn review_pr(
 
 fn dismiss_before_publish<T>(
     replacement: Result<T>,
-    dismiss: impl FnOnce() -> Result<()>,
+    dismiss: impl FnOnce(&T) -> Result<()>,
 ) -> Result<T> {
     let replacement = replacement?;
-    dismiss()?;
+    dismiss(&replacement)?;
     Ok(replacement)
 }
 
@@ -232,7 +257,7 @@ mod tests {
     fn failed_review_never_dismisses_an_existing_approval() {
         let mut dismissed = false;
         let outcome =
-            dismiss_before_publish::<()>(Err(anyhow!("hosted models unavailable")), || {
+            dismiss_before_publish::<()>(Err(anyhow!("hosted models unavailable")), |_| {
                 dismissed = true;
                 Ok(())
             });
