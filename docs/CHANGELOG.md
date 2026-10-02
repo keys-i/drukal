@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3 — unreleased
+
+- Edit Koelu’s latest consecutive reply and collapse older replies on issues and PRs
+- Keep request receipts and review approvals intact when replies change
+- Start PR review and opted-in Dependabot repair from trusted PR mentions
+- Check App push access through Git instead of requiring user-only repository permissions
+
 ## [0.7.2](https://github.com/keys-i/koelu/compare/v0.7.1...v0.7.2) (2026-09-29)
 
 - Validate configured CI names consistently during PR discovery and automatic repairs
