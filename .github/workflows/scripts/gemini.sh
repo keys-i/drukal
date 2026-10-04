@@ -27,4 +27,17 @@ arguments=(--skip-trust --approval-mode "$approval_mode" --admin-policy "$policy
 if [[ -n "${KOELU_MODEL:-}" ]]; then
   arguments+=(--model "$KOELU_MODEL")
 fi
-gemini "${arguments[@]}" | jq -er '.response | strings'
+set +e
+gemini "${arguments[@]}" | jq -er '
+  if .error then
+    (.error.type | if type == "string" and test("^[A-Za-z][A-Za-z0-9_-]{0,63}$") then . else "unknown" end) as $kind
+    | ("Gemini CLI error: " + $kind + "\n" | halt_error(1))
+  else .response | strings end
+'
+statuses=("${PIPESTATUS[@]}")
+set -e
+if (( statuses[0] != 0 )); then
+  printf 'Gemini CLI exited with status %s\n' "${statuses[0]}" >&2
+  exit "${statuses[0]}"
+fi
+exit "${statuses[1]}"

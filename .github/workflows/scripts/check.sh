@@ -6,7 +6,19 @@ readonly runner="$script_dir/gemini.sh"
 readonly temp="$(mktemp -d)"
 trap 'rm -rf -- "$temp"' EXIT
 mkdir -p "$temp/bin" "$temp/runtime"
-printf '%s\n' '#!/usr/bin/env bash' 'for arg in "$@"; do [[ "$arg" == --prompt ]] && found=1; done' '[[ "${found:-0}" == 1 ]] || exit 2' 'printf ran > "${SENTINEL:?}"' "printf '%s\\n' '{\"response\":\"sentinel\"}'" > "$temp/bin/gemini"
+cat > "$temp/bin/gemini" <<'FAKE'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  [[ "$arg" == --prompt ]] && found=1
+done
+[[ "${found:-0}" == 1 ]] || exit 2
+printf ran > "${SENTINEL:?}"
+if [[ "${FAKE_GEMINI_ERROR:-0}" == 1 ]]; then
+  printf '%s\n' '{"error":{"type":"FatalToolExecutionError","message":"secret","code":"tool_error"}}'
+  exit 54
+fi
+printf '%s\n' '{"response":"sentinel"}'
+FAKE
 chmod +x "$temp/bin/gemini"
 
 run() {
@@ -33,3 +45,12 @@ workspace="$temp/clean"
 mkdir -p "$workspace"
 [[ "$(run "$workspace")" == sentinel ]]
 [[ -e "$temp/ran" ]]
+
+set +e
+failure="$(FAKE_GEMINI_ERROR=1 run "$workspace" 2>&1)"
+status=$?
+set -e
+[[ "$status" == 54 ]]
+[[ "$failure" == *'Gemini CLI error: FatalToolExecutionError'* ]]
+[[ "$failure" == *'Gemini CLI exited with status 54'* ]]
+[[ "$failure" != *secret* ]]

@@ -521,7 +521,10 @@ fn run_delivery(
                 .push(worker_run.clone());
             worker_runs.push(worker_run);
             if output.code != 0 {
-                bail!("the agent stopped before completing the task");
+                bail!(
+                    "the agent stopped before completing the task (exit {})",
+                    output.code
+                );
             }
             (names, diff, candidate) = evidence(
                 workspace,
