@@ -1,7 +1,7 @@
 autofix = true
 checks = ["test"]
 schema = 1
-source = "keys-i/koelu@3518ef5648053ec66b01dffe3ce563ec630c6e55"
+source = "keys-i/koelu@bf79662bdf648f97fd89d42ce14adab292957dff"
 
 [agreement]
 accepted_at_unix = 1790480246
