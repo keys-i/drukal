@@ -522,8 +522,8 @@ fn run_delivery(
             worker_runs.push(worker_run);
             if output.code != 0 {
                 bail!(
-                    "the agent stopped before completing the task (exit {})",
-                    output.code
+                    "the agent stopped before completing the task ({})",
+                    worker_failure(&output)
                 );
             }
             (names, diff, candidate) = evidence(
@@ -929,6 +929,24 @@ fn configure_hosted_identity(workspace: &Path, cancel_file: Option<&Path>) -> Re
     Ok(())
 }
 
+/// Keep a useful failure category without exposing a worker's captured output
+fn worker_failure(output: &agent::ProcessOutput) -> String {
+    let kind = output
+        .stderr
+        .lines()
+        .filter_map(|line| line.strip_prefix("Gemini CLI error: "))
+        .find(|kind| {
+            kind.len() <= 64
+                && kind
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        });
+    match kind {
+        Some(kind) => format!("exit {}, {kind}", output.code),
+        None => format!("exit {}", output.code),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_worker(
     prompt: &str,
@@ -1007,6 +1025,21 @@ fn run_worker(
 mod tests {
     use super::*;
     use std::hint::black_box;
+
+    #[test]
+    fn worker_failures_keep_only_safe_categories() {
+        let output = agent::ProcessOutput {
+            code: 173,
+            stdout: "private work".into(),
+            stderr: "Gemini CLI error: FatalToolExecutionError\nsecret".into(),
+        };
+        assert_eq!(worker_failure(&output), "exit 173, FatalToolExecutionError");
+        let untrusted = agent::ProcessOutput {
+            stderr: "Gemini CLI error: Bad\r\u{1b}[31m".into(),
+            ..output
+        };
+        assert_eq!(worker_failure(&untrusted), "exit 173");
+    }
 
     #[test]
     fn app_repository_responses_do_not_require_user_permissions() {
