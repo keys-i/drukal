@@ -17,6 +17,10 @@ if [[ "${FAKE_GEMINI_ERROR:-0}" == 1 ]]; then
   printf '%s\n' '{"error":{"type":"FatalToolExecutionError","message":"secret","code":"tool_error"}}'
   exit 54
 fi
+if [[ "${FAKE_GEMINI_STDERR_ERROR:-0}" == 1 ]]; then
+  printf '%s\n' '{"error":{"type":"ProviderError","message":"secret","code":173}}' >&2
+  exit 173
+fi
 printf '%s\n' '{"response":"sentinel"}'
 FAKE
 chmod +x "$temp/bin/gemini"
@@ -54,3 +58,10 @@ set -e
 [[ "$failure" == *'Gemini CLI error: FatalToolExecutionError'* ]]
 [[ "$failure" == *'Gemini CLI exited with status 54'* ]]
 [[ "$failure" != *secret* ]]
+
+set +e
+failure="$(FAKE_GEMINI_STDERR_ERROR=1 run "$workspace" 2>&1)"
+status=$?
+set -e
+[[ "$status" == 173 ]]
+[[ "$failure" == *'Gemini CLI error: ProviderError'* ]]

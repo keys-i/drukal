@@ -27,8 +27,10 @@ arguments=(--skip-trust --approval-mode "$approval_mode" --admin-policy "$policy
 if [[ -n "${KOELU_MODEL:-}" ]]; then
   arguments+=(--model "$KOELU_MODEL")
 fi
+readonly stderr_file="$(mktemp "${RUNNER_TEMP}/koelu-gemini-stderr.XXXXXX")"
+trap 'rm -f -- "$stderr_file"' EXIT
 set +e
-gemini "${arguments[@]}" | jq -er '
+gemini "${arguments[@]}" 2> "$stderr_file" | jq -er '
   if .error then
     (.error.type | if type == "string" and test("^[A-Za-z][A-Za-z0-9_-]{0,63}$") then . else "unknown" end) as $kind
     | ("Gemini CLI error: " + $kind + "\n" | halt_error(1))
@@ -36,7 +38,12 @@ gemini "${arguments[@]}" | jq -er '
 '
 statuses=("${PIPESTATUS[@]}")
 set -e
+cat -- "$stderr_file" >&2
 if (( statuses[0] != 0 )); then
+  kind="$(jq -er '.error.type | select(type == "string" and test("^[A-Za-z][A-Za-z0-9_-]{0,63}$"))' "$stderr_file" 2>/dev/null || true)"
+  if [[ -n "$kind" ]]; then
+    printf 'Gemini CLI error: %s\n' "$kind" >&2
+  fi
   printf 'Gemini CLI exited with status %s\n' "${statuses[0]}" >&2
   exit "${statuses[0]}"
 fi
