@@ -44,6 +44,13 @@ pub(crate) fn respond(
     }
     let body = match invocation(&prompt.prompt) {
         Invocation::Ask(request) if request.is_empty() => USAGE.to_owned(),
+        Invocation::Ask(request)
+            if request
+                .trim_end_matches(['!', '.'])
+                .eq_ignore_ascii_case("hi") =>
+        {
+            "Hi".to_owned()
+        }
         Invocation::Ask(request) => {
             let conversation = recent_comments(github, number, issue_comment_count(&pull)?)?;
             neutralize(&answer(
@@ -60,7 +67,7 @@ pub(crate) fn respond(
             )?)
         }
         Invocation::WriteRequest(_) | Invocation::Approve(_) => {
-            "Post the change request or approval in this PR’s **Conversation** tab with `@koelu`. I’ll prepare the change through the existing approval flow.".to_owned()
+            "Post the change request or approval in this PR’s **Conversation** tab with `@koelu[bot]`. I’ll prepare the change through the existing approval flow.".to_owned()
         }
     };
     let thread = source["in_reply_to_id"].as_u64().unwrap_or(comment);

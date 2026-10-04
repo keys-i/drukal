@@ -608,14 +608,8 @@ pub(super) fn answer_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "properties": {
-            "answer": {"type": "string", "minLength": 1, "maxLength": MAX_ANSWER},
-            "follow_ups": {
-                "type": "array", "maxItems": 3,
-                "items": {"type": "string", "minLength": 1, "maxLength": 240}
-            }
-        },
-        "required": ["answer", "follow_ups"]
+        "properties": {"answer": {"type": "string", "minLength": 1, "maxLength": MAX_ANSWER}},
+        "required": ["answer"]
     })
 }
 
@@ -738,42 +732,15 @@ fn answer_from_json(value: &str) -> Result<String> {
 pub(super) fn answer_from_value(value: &Value) -> Result<String> {
     let object = value
         .as_object()
-        .filter(|object| {
-            object
-                .keys()
-                .all(|key| matches!(key.as_str(), "answer" | "follow_ups"))
-        })
+        .filter(|object| object.keys().all(|key| key == "answer"))
         .ok_or_else(|| anyhow!("hosted model returned an invalid response"))?;
-    let mut answer = object
+    object
         .get("answer")
         .and_then(Value::as_str)
         .map(str::to_owned)
         .map(|answer| answer.trim().to_owned())
         .filter(|answer| !answer.is_empty() && answer.chars().count() <= MAX_ANSWER)
-        .ok_or_else(|| anyhow!("hosted model returned an invalid response"))?;
-    let follow_ups = object
-        .get("follow_ups")
-        .map(|value| {
-            value
-                .as_array()
-                .ok_or_else(|| anyhow!("hosted model returned invalid follow-up questions"))
-        })
-        .transpose()?
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(str::trim)
-        .filter(|question| !question.is_empty() && question.chars().count() <= 240)
-        .take(3)
-        .collect::<Vec<_>>();
-    if !follow_ups.is_empty() {
-        answer.push_str("\n\nYou could ask next:\n");
-        for question in follow_ups {
-            answer.push_str("\n- ");
-            answer.push_str(question);
-        }
-    }
-    Ok(answer)
+        .ok_or_else(|| anyhow!("hosted model returned an invalid response"))
 }
 
 #[cfg(test)]
@@ -835,6 +802,7 @@ mod tests {
             vec!["gemini-flash".to_owned(), "gemini-pro".to_owned()]
         );
         assert_eq!(answer_from_json(r#"{"answer":"ready"}"#).unwrap(), "ready");
+        assert!(answer_from_json(r#"{"answer":"ready","follow_ups":["next?"]}"#).is_err());
         let error = anyhow!(HostedUnavailable("cooling down".to_owned()));
         assert!(is_hosted_unavailable(&error));
     }
@@ -850,12 +818,11 @@ mod tests {
         let answer = call_with_retry(
             &model,
             &credentials,
-            "Reply with the single word Hi in the answer field and no follow-up questions",
+            "Reply with the single word Hi in the answer field",
             super::super::INSTRUCTIONS,
             &answer_schema(),
         )
         .unwrap();
         assert_eq!(answer_from_value(&answer).unwrap(), "Hi");
-        assert_eq!(answer["follow_ups"], json!([]));
     }
 }
