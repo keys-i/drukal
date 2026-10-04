@@ -24,7 +24,7 @@ Setup creates a closed, admin-authored receipt and stores its IDs, signer, time,
 
 ## Reviews and mentions
 
-Only `OWNER`, `MEMBER`, and `COLLABORATOR` actors can invoke `@koelu <prompt>`. Replies are read-only. Issue text, pull-request text, checks, diffs, paths, and model output are untrusted input.
+Only `OWNER`, `MEMBER`, and `COLLABORATOR` actors can invoke `@koelu[bot] <prompt>`. Replies are read-only. Issue text, pull-request text, checks, diffs, paths, and model output are untrusted input.
 
 Review windows rotate fairly. Koelu honours the configured source pin, verifies Dependabot evidence and selected checks, and leaves unsupported, grouped, or ambiguous updates as comments for manual review. It also reviews same-repository Koelu Release Please PRs, flags stale versions and merge conflicts, and leaves release repairs to a maintainer. The App registration reserves Contents write access for approved coding delivery. Mention, discovery, and review tokens are narrowed to read-only contents access and cannot push or merge.
 
@@ -32,7 +32,7 @@ The separate `--autofix` opt-in permits checked replacement pull requests for si
 
 ## Approved writes
 
-An ad hoc write starts with an explicit `@koelu` request. Koelu records an exact proposal including the request, author, default branch, and base commit. The same author must approve that request by comment ID. Immediately before dispatch, the service rechecks both comments, that the issue or pull request is open, the proposal, current author permission, and the recorded base revision.
+An ad hoc write starts with an explicit `@koelu[bot]` request. Koelu records an exact proposal including the request, author, default branch, and base commit. The same author must approve that request by comment ID. Immediately before dispatch, the service rechecks both comments, that the issue or pull request is open, the proposal, current author permission, and the recorded base revision.
 
 Only then does it mint a repository-scoped delivery token, create an isolated branch, and open a pull request. It never merges, changes branch protection, or writes to the default branch. A claim marker prevents a second dispatch for the same approval. Every claim receives a terminal result; invalid approvals, permission or base changes, cancellation, and failed validation stop the run. Resolve the cause and create a new request and approval rather than reusing a claimed approval.
 

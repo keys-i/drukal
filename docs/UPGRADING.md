@@ -20,7 +20,7 @@ You can remove the previous CLI after Koelu works on your machine with `cargo un
 
 ## Move the hosted service
 
-The public GitHub App and mention must both use **Koelu** and `@koelu`. Before deploying the renamed central workflow:
+The public GitHub App is **Koelu** and its bot login is `@koelu[bot]`. The shorter `@koelu` belongs to an unrelated GitHub user. Before deploying the renamed central workflow:
 
 1. Confirm the existing App is [Koelu](https://github.com/apps/koelu) under `keys-i`, with its intended visibility and permissions.
 2. In the central `keys-i/koelu` repository only, move the existing `RADY_*` credentials to their `KOELU_*` names. `KOELU_APP_CLIENT_ID` and `KOELU_APP_SLUG=koelu` are already set. Re-enter the App private key, Gemini key, and Cerebras key as Koelu secrets through GitHub settings; GitHub does not reveal their old values. Configure any additional provider keys you use, and add `KOELU_RELEASE_TOKEN` and `CARGO_REGISTRY_TOKEN` before publishing. Do not put these in target repositories.
@@ -44,7 +44,7 @@ After the repository becomes `keys-i/koelu`, use Koelu 0.6.10 or newer for setup
 In `keys-i/koelu`, issue and PR conversation comments trigger the workflow directly. The service also polls installed repositories every five minutes. A mention can ask a read-only question:
 
 ```text
-@koelu What changed here, and what should I check?
+@koelu[bot] What changed here, and what should I check?
 @koelu[bot] Review this line
 ```
 

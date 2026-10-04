@@ -10,7 +10,7 @@ This policy covers the hosted Koelu service maintained through `keys-i/koelu`. A
 
 Koelu receives the GitHub account and repository information exposed to its App installation. That can include usernames, issue and pull-request text, comments, diffs, paths, commit IDs, check results, and links. It stores consent receipt IDs, the accepting login, policy versions, and acceptance time in the target repository’s `.github/koelu.toml` (or a legacy `.github/koelu.json` during migration).
 
-Koelu uses this information to authenticate work, answer `@koelu`, review eligible pull requests, prepare approved writes or opted-in Dependabot repairs, prevent duplicate work, and protect the service. It does not sell repository content or use it for advertising.
+Koelu uses this information to authenticate work, answer `@koelu[bot]`, review eligible pull requests, prepare approved writes or opted-in Dependabot repairs, prevent duplicate work, and protect the service. It does not sell repository content or use it for advertising.
 
 ## Where information goes
 

@@ -12,7 +12,7 @@ You must be authorised to connect the selected GitHub account, organisation, and
 
 ## What Koelu does
 
-Koelu reads available repository metadata, issues, pull requests, diffs, and check results to answer `@koelu` and review eligible dependency updates. It may post a comment or review. For an explicit write request, it can prepare an isolated branch and pull request only after the same author approves that exact request. It does not enable, disable, or perform merges. You decide whether to merge.
+Koelu reads available repository metadata, issues, pull requests, diffs, and check results to answer `@koelu[bot]` and review eligible dependency updates. It may post a comment or review. For an explicit write request, it can prepare an isolated branch and pull request only after the same author approves that exact request. It does not enable, disable, or perform merges. You decide whether to merge.
 
 An administrator may enable `--autofix` during setup. This authorises Koelu to open a checked replacement pull request for a verified Cargo Dependabot update with a merge conflict or failed required check. It never edits the Dependabot branch or merges the replacement. Existing `t4` agreements continue to permit reviews and individually approved writes but do not authorise automatic repairs.
 

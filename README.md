@@ -67,10 +67,10 @@ Older `.github/koelu.json` files still work during migration. Remove yours after
 
 ## Ask Koelu on GitHub
 
-Start an issue or PR comment with either name
+Start an issue or PR comment with the App bot’s login
 
 ```text
-@koelu What changed here, and what should I check?
+@koelu[bot] What changed here, and what should I check?
 @koelu[bot] Review this line
 ```
 
@@ -81,7 +81,7 @@ Conversation mentions in `keys-i/koelu` start a run directly, as do inline menti
 <details>
 <summary>Why doesn't Koelu appear in the @ picker?</summary>
 
-The App's bot login is `koelu[bot]`, and you can type it in a comment. Supporting that name does not add Koelu to GitHub's autocomplete list. GitHub's [agent-app picker](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/use-agent-apps) is a separate integration that requires agent-app registration and a paid Copilot plan.
+The App's bot login is `koelu[bot]`, and you can type it in a comment. The shorter `@koelu` belongs to an unrelated GitHub user. GitHub does not add App bots to the ordinary mention picker. Its [agent-app picker](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/use-agent-apps) is a separate integration that requires agent-app registration and a paid Copilot plan.
 
 </details>
 
@@ -104,8 +104,8 @@ This covers verified updates, including signed groups and changes only to `Cargo
 Post the change you want in an issue or the PR's **Conversation** tab. Koelu records the request and base commit, then asks you to approve it using the request's comment ID.
 
 ```text
-@koelu fix the parser error for empty package names
-@koelu approve 123456789
+@koelu[bot] fix the parser error for empty package names
+@koelu[bot] approve 123456789
 ```
 
 The same person must approve the request and still have write, maintain or admin access. Koelu rechecks the request, approval and base commit before starting. It saves completed steps on a `koelu/...` branch and opens one PR for you to review.
