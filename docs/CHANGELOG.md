@@ -2,11 +2,12 @@
 
 ## 0.7.3 — unreleased
 
-- Edit Koelu’s latest consecutive reply and collapse older replies on issues and PRs
+- Rename the product, crate, CLI, configuration, environment variables, Homebrew formula and poster to Drukal
+- Accept both `@drukal` and `@drukal[bot]`, and preserve earlier request receipts during the rename
+- Edit Drukal’s latest consecutive reply and collapse older replies on issues and PRs
 - Keep request receipts and review approvals intact when replies change
 - Start PR review and opted-in Dependabot repair from trusted PR mentions
 - Check App push access through Git instead of requiring user-only repository permissions
-- Use the App’s `@koelu[bot]` handle for requests because `@koelu` belongs to another user
 
 ## [0.7.2](https://github.com/keys-i/koelu/compare/v0.7.1...v0.7.2) (2026-09-29)
 

@@ -1,16 +1,16 @@
-# Koelu privacy policy
+# Drukal privacy policy
 
 Effective 27 September 2026 · version `2026-09-27-p5`
 
 This is the current hosted-service policy, not a retroactive description of earlier Rady or Pekin releases.
 
-This policy covers the hosted Koelu service maintained through `keys-i/koelu`. A self-hosted operator is responsible for its own deployment.
+This policy covers the hosted Drukal service maintained through `keys-i/drukal`. A self-hosted operator is responsible for its own deployment.
 
-## Information Koelu handles
+## Information Drukal handles
 
-Koelu receives the GitHub account and repository information exposed to its App installation. That can include usernames, issue and pull-request text, comments, diffs, paths, commit IDs, check results, and links. It stores consent receipt IDs, the accepting login, policy versions, and acceptance time in the target repository’s `.github/koelu.toml` (or a legacy `.github/koelu.json` during migration).
+Drukal receives the GitHub account and repository information exposed to its App installation. That can include usernames, issue and pull-request text, comments, diffs, paths, commit IDs, check results, and links. It stores consent receipt IDs, the accepting login, policy versions, and acceptance time in the target repository’s `.github/drukal.toml` (or a legacy `.github/drukal.json` during migration).
 
-Koelu uses this information to authenticate work, answer `@koelu[bot]`, review eligible pull requests, prepare approved writes or opted-in Dependabot repairs, prevent duplicate work, and protect the service. It does not sell repository content or use it for advertising.
+Drukal uses this information to authenticate work, answer `@drukal[bot]`, review eligible pull requests, prepare approved writes or opted-in Dependabot repairs, prevent duplicate work, and protect the service. It does not sell repository content or use it for advertising.
 
 ## Where information goes
 
@@ -20,12 +20,12 @@ App credentials stay in the central service and out of child processes. The sele
 
 ## Retention and control
 
-Koelu has no separate user-profile or prompt database. GitHub comments, reviews, configuration, and Actions logs follow GitHub and repository retention settings. Providers retain requests under their own terms. Local CLI evidence remains on the operator’s machine until removed.
+Drukal has no separate user-profile or prompt database. GitHub comments, reviews, configuration, and Actions logs follow GitHub and repository retention settings. Providers retain requests under their own terms. Local CLI evidence remains on the operator’s machine until removed.
 
-You can stop new processing by uninstalling the App or removing the Koelu configuration (`.github/koelu.toml` and any legacy `.github/koelu.json`), and can remove GitHub content where GitHub allows. For an access, correction, or privacy concern that cannot be handled in the repository, use the private route in [Security](../.github/SECURITY.md) without sending unnecessary repository content.
+You can stop new processing by uninstalling the App or removing the Drukal configuration (`.github/drukal.toml` and any legacy `.github/drukal.json`), and can remove GitHub content where GitHub allows. For an access, correction, or privacy concern that cannot be handled in the repository, use the private route in [Security](../.github/SECURITY.md) without sending unnecessary repository content.
 
 ## Automated work
 
-Koelu uses rules and model output to prepare answers and reviews. For a requested code change, it rechecks the exact request, same-author approval, live permission, proposal, and base revision before preparing a branch and pull request. An administrator may opt in to checked replacement pull requests for eligible signed Cargo updates with merge conflicts or failed required checks. Koelu leaves unsupported or ambiguous dependency updates for manual review and does not enable, disable, or perform merges. Repository owners retain the final merge decision.
+Drukal uses rules and model output to prepare answers and reviews. For a requested code change, it rechecks the exact request, same-author approval, live permission, proposal, and base revision before preparing a branch and pull request. An administrator may opt in to checked replacement pull requests for eligible signed Cargo updates with merge conflicts or failed required checks. Drukal leaves unsupported or ambiguous dependency updates for manual review and does not enable, disable, or perform merges. Repository owners retain the final merge decision.
 
 Existing `p4` receipts continue to permit reviews and individually approved writes. Automatic repair requires a new administrator acceptance of this version and `--autofix` during setup.

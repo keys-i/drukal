@@ -1,53 +1,59 @@
-# Upgrading to Koelu
+# Upgrading to Drukal
 
-Koelu replaces Pekin, which replaced Rady. You can upgrade directly from any earlier release. The [changelog](CHANGELOG.md) keeps the old names and commands in their historical entries.
+Drukal replaces Koelu and the unpublished Koela rename. Earlier names were Pekin and Rady. The [changelog](CHANGELOG.md) keeps released commands and names in their historical entries
 
 ## Install the new CLI
 
-Install Koelu with Cargo or the Homebrew tap:
+Build this checkout until the first Drukal release is published
 
 ```sh
-cargo install koelu --locked
-koelu --help
+cargo build --release --locked
+target/release/drukal --help
+```
+
+After that release, install with Cargo or Homebrew
+
+```sh
+cargo install drukal --locked
+drukal --help
 ```
 
 ```sh
-brew tap keys-i/koelu https://github.com/keys-i/koelu
-brew install keys-i/koelu/koelu
+brew tap keys-i/drukal https://github.com/keys-i/drukal
+brew install keys-i/drukal/drukal
 ```
 
-You can remove the previous CLI after Koelu works on your machine with `cargo uninstall pekin` or `cargo uninstall rady`; for Homebrew, uninstall the matching old formula. The old local run folders are not moved. Keep any evidence you still need before removing them.
+Remove a previous CLI only after Drukal works on your machine. Use `cargo uninstall` with its old package name or uninstall its Homebrew formula. Saved run folders are not moved automatically. To reuse one, set `DRUKAL_RUNS_DIR` to its existing path
 
 ## Move the hosted service
 
-The public GitHub App is **Koelu** and its bot login is `@koelu[bot]`. The shorter `@koelu` belongs to an unrelated GitHub user. Before deploying the renamed central workflow:
+Complete this cutover before deploying the renamed workflow
 
-1. Confirm the existing App is [Koelu](https://github.com/apps/koelu) under `keys-i`, with its intended visibility and permissions.
-2. In the central `keys-i/koelu` repository only, move the existing `RADY_*` credentials to their `KOELU_*` names. `KOELU_APP_CLIENT_ID` and `KOELU_APP_SLUG=koelu` are already set. Re-enter the App private key, Gemini key, and Cerebras key as Koelu secrets through GitHub settings; GitHub does not reveal their old values. Configure any additional provider keys you use, and add `KOELU_RELEASE_TOKEN` and `CARGO_REGISTRY_TOKEN` before publishing. Do not put these in target repositories.
-3. Deploy the Koelu central workflow only after the App and credentials are ready. Old environment variable names are not read by this version.
-4. Run setup as an administrator in each connected repository, then review and commit its generated `.github/koelu.toml`. Remove an obsolete `.github/koelu.json` or `.github/pekin.json` only after the new setup succeeds and its contents are no longer needed.
-
-Until the new workflow is deployed, the existing workflow may still read `RADY_APP_SLUG`. Set that legacy variable's value to `koelu` if you need it to keep running during the cutover; remove the variable after the old workflow is retired.
+1. Rename the existing `keys-i/koelu` repository to `keys-i/drukal`, and update local Git remotes and the Homebrew tap URL
+2. Rename the existing GitHub App to **Drukal**, with slug `drukal`, preserving its identity, installations and permissions under `keys-i`
+3. The central workflows pass credentials to Drukal using `DRUKAL_*` environment variables. They prefer the matching Drukal secrets and reuse existing `KOELU_*` App and provider secrets during the transition, including `RADY_CEREBRAS_API_KEY`. They also reuse `KOELU_APP_CLIENT_ID` and default the App slug to `drukal`. To retire these fallbacks, add the matching Drukal secrets through Settings using your existing credentials. Installed target repositories do not need these credentials
+4. Commit the renamed source and deploy the Drukal workflow after the App and credentials are ready. This version reads `DRUKAL_*` environment variables
+5. Run setup as an administrator in each connected repository. Review and commit the generated `.github/drukal.toml`, including its new immutable solver revision. An older solver pin does not contain the Drukal binary
 
 ```sh
-koelu setup --repo owner/repo --check test --accept-terms
+drukal setup --repo owner/repo --check test --accept-terms
 ```
 
-The current Koelu service agreement uses Terms `2026-09-27-t5` and Privacy `2026-09-27-p5`. Setup records a new, closed consent issue and updates the repository's public configuration. `koelu dependasolve --repo owner/repo --check test --apply --accept-terms` is the scriptable equivalent; it configures the repository but does not run a review immediately.
+The existing Terms `2026-09-27-t5` and Privacy `2026-09-27-p5` still apply. Setup records the agreement and pins the trusted `keys-i/drukal` source. To retain automatic Cargo Dependabot repair, include `--autofix` when running setup
 
-For automatic Cargo Dependabot repair, update to a version containing the `--autofix` option and rerun `koelu setup --repo owner/repo --check test --autofix --accept-terms`. This records the new `t5`/`p5` agreement and pins the current trusted solver source. Existing `t4`/`p4` receipts keep reviews and individually approved writes running. Review and commit the new `.github/koelu.toml` before expecting replacement pull requests.
-
-After the repository becomes `keys-i/koelu`, use Koelu 0.6.10 or newer for setup. Koelu 0.6.9 still requires the previous trusted repository name.
+Remove obsolete `.github/koelu.toml`, `.github/koelu.json`, `.github/koela.toml` or older configuration only after the new setup succeeds and its contents are no longer needed. Keep the old workflow's credentials until that workflow is retired
 
 ## PRs and mentions
 
-In `keys-i/koelu`, issue and PR conversation comments trigger the workflow directly. The service also polls installed repositories every five minutes. A mention can ask a read-only question:
+Start a comment with either form
 
 ```text
-@koelu[bot] What changed here, and what should I check?
-@koelu[bot] Review this line
+@drukal What changed here, and what should I check?
+@drukal[bot] Review this line
 ```
 
-Inline PR mentions reply in the review thread; fork PRs use the scheduled sweep. Koelu reviews open, non-draft PRs from any author without executing PR code. Opted-in Cargo repairs can handle signed group updates and lockfile-only changes; a failed model review no longer prevents the repair attempt.
+Leading whitespace, a newline after the name and case differences are accepted. A name embedded later in a comment does not invoke Drukal. Old product mentions are not aliases
 
-An explicit change request still requires the same author to approve the exact proposal before Koelu creates an isolated branch and pull request. Put change requests and approvals in the PR's Conversation tab. Koelu never merges for you. The `keys-i/koelu` source pin, selected checks, and consent receipt remain required for hosted work; changing the product name does not loosen those gates.
+Inline PR questions reply in the review thread. Put change requests and approvals in the PR's Conversation tab. The same author must approve the exact proposal before Drukal creates a branch and pull request. Existing hidden request receipts remain readable to prevent duplicate replies and dispatches
+
+The trusted solver pin, selected checks, administrator agreement and author permissions remain required. Drukal never merges for you

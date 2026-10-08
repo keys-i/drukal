@@ -1,12 +1,10 @@
-class Rady < Formula
+class Drukal < Formula
   desc "Checks agent-made changes and reviews Dependabot pull requests"
   homepage "https://github.com/keys-i/drukal"
   url "https://github.com/keys-i/drukal.git",
-      tag: "v0.6.7"
-  version "0.6.7"
+      tag: "v0.7.3"
+  version "0.7.3"
   license "MIT"
-
-  deprecate! date: "2026-09-26", because: "was renamed to Drukal", replacement_formula: "drukal"
 
   depends_on "rust" => :build
   deny_network_access!
@@ -20,8 +18,8 @@ class Rady < Formula
   end
 
   test do
-    ENV["RADY_RUNS_DIR"] = (testpath/"runs").to_s
-    assert_match '"runs": []', shell_output("#{bin}/rady --output json runs")
-    assert_match "Usage: rady dependasolve", shell_output("#{bin}/rady dependasolve --help")
+    ENV["DRUKAL_RUNS_DIR"] = (testpath/"runs").to_s
+    assert_match '"runs": []', shell_output("#{bin}/drukal --output json runs")
+    assert_match "Usage: drukal dependasolve", shell_output("#{bin}/drukal dependasolve --help")
   end
 end
