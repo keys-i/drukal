@@ -117,7 +117,7 @@ fn request_body(
             body["response_format"] = json!({
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "koelu_answer",
+                    "name": "drukal_answer",
                     "strict": true,
                     "schema": schema
                 }

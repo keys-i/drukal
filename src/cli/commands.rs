@@ -25,7 +25,7 @@ use super::{
 
 pub(super) fn doctor(arguments: DoctorArgs, theme: Theme, output: OutputMode) -> Result<()> {
     let mut ui = Ui::new(theme, output, 3);
-    ui.title("Koelu doctor", "Check what's ready on this machine");
+    ui.title("Drukal doctor", "Check what's ready on this machine");
     let mut rows = Vec::new();
     let mut ready = true;
     for name in ["git", "gh"] {
@@ -70,10 +70,10 @@ pub(super) fn doctor(arguments: DoctorArgs, theme: Theme, output: OutputMode) ->
 pub(super) fn native_agent(arguments: AgentArgs) -> Result<()> {
     let (program, prefix) = if arguments.harness == Harness::Command {
         let configured =
-            agent::split_command(&env::var("KOELU_AGENT_COMMAND").unwrap_or_default())?;
+            agent::split_command(&env::var("DRUKAL_AGENT_COMMAND").unwrap_or_default())?;
         let (program, prefix) = configured
             .split_first()
-            .ok_or_else(|| anyhow!("set KOELU_AGENT_COMMAND"))?;
+            .ok_or_else(|| anyhow!("set DRUKAL_AGENT_COMMAND"))?;
         (
             program.clone(),
             prefix.iter().map(OsString::from).collect::<Vec<_>>(),
@@ -134,13 +134,13 @@ pub(super) fn review(arguments: ReviewArgs) -> Result<()> {
         &github,
         arguments.pr,
         &required,
-        env::var("KOELU_MODEL")
+        env::var("DRUKAL_MODEL")
             .ok()
             .filter(|value| !value.is_empty())
             .as_deref(),
         &env::var("APP_SLUG").unwrap_or_default(),
         arguments.harness,
-        match env::var("KOELU_REPOSITORY_PRIVATE").ok().as_deref() {
+        match env::var("DRUKAL_REPOSITORY_PRIVATE").ok().as_deref() {
             Some("true") => Some(true),
             Some("false") => Some(false),
             _ => None,
@@ -162,7 +162,7 @@ pub(super) fn respond(arguments: RespondArgs) -> Result<()> {
         &github,
         arguments.issue,
         arguments.comment,
-        env::var("KOELU_MODEL")
+        env::var("DRUKAL_MODEL")
             .ok()
             .filter(|value| !value.is_empty())
             .as_deref(),
@@ -209,7 +209,7 @@ pub(super) fn auto_repair(arguments: AutoRepairArgs) -> Result<()> {
     let acceptance = "The Dependabot update is preserved and the Rust checks pass".to_owned();
     let check = "cargo test --all-targets --no-fail-fast --locked".to_owned();
     let model_choices =
-        agent::routing::parse_model_choices(&env::var("KOELU_MODEL_CHOICES").unwrap_or_default());
+        agent::routing::parse_model_choices(&env::var("DRUKAL_MODEL_CHOICES").unwrap_or_default());
     let initial_model = (!model_choices.is_empty()).then_some(0);
     let plan = Plan {
         acceptance: vec![acceptance],
@@ -245,7 +245,7 @@ pub(super) fn auto_repair(arguments: AutoRepairArgs) -> Result<()> {
         ],
         harness: Harness::Command,
         agents: 1,
-        model: env::var("KOELU_MODEL")
+        model: env::var("DRUKAL_MODEL")
             .ok()
             .filter(|model| !model.is_empty()),
         model_choices,

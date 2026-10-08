@@ -119,10 +119,10 @@ pub fn evaluate_cancellable(
     let mut environment = super::harness::model_environment(model, harness)?;
     if harness == Harness::Command {
         environment.insert(
-            "KOELU_MODEL".to_owned(),
+            "DRUKAL_MODEL".to_owned(),
             model.unwrap_or_default().to_owned(),
         );
-        environment.insert("KOELU_READ_ONLY".to_owned(), "1".to_owned());
+        environment.insert("DRUKAL_READ_ONLY".to_owned(), "1".to_owned());
     }
     let result = run_cancellable(
         command,

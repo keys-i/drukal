@@ -41,7 +41,7 @@ pub(super) fn answer(
         "text": {
             "format": {
                 "type": "json_schema",
-                "name": "koelu_answer",
+                "name": "drukal_answer",
                 "strict": true,
                 "schema": schema
             }

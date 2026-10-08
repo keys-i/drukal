@@ -251,12 +251,12 @@ fn require_safe_hosted_publication_paths(paths: &[String]) -> Result<()> {
     if let Some(path) = paths.iter().find(|path| {
         path.starts_with(".github/workflows/")
             || path.starts_with(".github/actions/")
-            || matches!(path.as_str(), ".github/koelu.toml" | ".github/koelu.json")
+            || matches!(path.as_str(), ".github/drukal.toml" | ".github/drukal.json")
             || matches!(
                 path.as_str(),
                 ".env" | "AGENTS.md" | "DESIGN.md" | "GEMINI.md"
             )
-            || path.starts_with(".koelu/")
+            || path.starts_with(".drukal/")
             || path.starts_with(".gemini/")
     }) {
         bail!("hosted delivery cannot publish protected path: {path}");

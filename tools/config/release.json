@@ -4,7 +4,7 @@
   "include-component-in-tag": false,
   "packages": {
     ".": {
-      "package-name": "koelu",
+      "package-name": "drukal",
       "changelog-path": "docs/CHANGELOG.md"
     }
   }

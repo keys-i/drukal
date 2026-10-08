@@ -37,10 +37,10 @@ pub fn resolve(github: &GitHub, number: u64) -> Result<(Value, bool, Option<Depe
 }
 
 pub(crate) fn release_version(repo: &str, pull: &Value) -> Option<[u64; 3]> {
-    if repo != "keys-i/koelu"
+    if repo != "keys-i/drukal"
         || !matches!(
             pull["user"]["login"].as_str(),
-            Some("koelu[bot]" | "app/koelu")
+            Some("drukal[bot]" | "app/drukal")
         )
         || pull["head"]["repo"]["full_name"] != repo
         || pull["base"]["repo"]["full_name"] != repo
@@ -513,28 +513,28 @@ mod tests {
     }
 
     #[test]
-    fn release_pr_identity_is_limited_to_the_koelu_release_branch() {
+    fn release_pr_identity_is_limited_to_the_drukal_release_branch() {
         let mut pull = json!({
-            "user": {"login": "koelu[bot]"},
+            "user": {"login": "drukal[bot]"},
             "title": "chore(main): release 0.6.14",
             "head": {
-                "repo": {"full_name": "keys-i/koelu"},
-                "ref": "release-please--branches--main--components--koelu"
+                "repo": {"full_name": "keys-i/drukal"},
+                "ref": "release-please--branches--main--components--drukal"
             },
-            "base": {"repo": {"full_name": "keys-i/koelu"}, "ref": "main"}
+            "base": {"repo": {"full_name": "keys-i/drukal"}, "ref": "main"}
         });
-        assert_eq!(release_version("keys-i/koelu", &pull), Some([0, 6, 14]));
-        pull["user"]["login"] = json!("app/koelu");
-        assert_eq!(release_version("keys-i/koelu", &pull), Some([0, 6, 14]));
+        assert_eq!(release_version("keys-i/drukal", &pull), Some([0, 6, 14]));
+        pull["user"]["login"] = json!("app/drukal");
+        assert_eq!(release_version("keys-i/drukal", &pull), Some([0, 6, 14]));
         pull["user"]["login"] = json!("stranger[bot]");
-        assert_eq!(release_version("keys-i/koelu", &pull), None);
-        pull["user"]["login"] = json!("koelu[bot]");
-        pull["head"]["ref"] = json!("feature--branches--main--components--koelu");
-        assert_eq!(release_version("keys-i/koelu", &pull), None);
-        pull["head"]["ref"] = json!("release-please--branches--main--components--koelu");
-        assert_eq!(release_version("other/koelu", &pull), None);
+        assert_eq!(release_version("keys-i/drukal", &pull), None);
+        pull["user"]["login"] = json!("drukal[bot]");
+        pull["head"]["ref"] = json!("feature--branches--main--components--drukal");
+        assert_eq!(release_version("keys-i/drukal", &pull), None);
+        pull["head"]["ref"] = json!("release-please--branches--main--components--drukal");
+        assert_eq!(release_version("other/drukal", &pull), None);
         pull["title"] = json!("chore(main): release 0.06.14");
-        assert_eq!(release_version("keys-i/koelu", &pull), None);
+        assert_eq!(release_version("keys-i/drukal", &pull), None);
     }
 
     #[test]

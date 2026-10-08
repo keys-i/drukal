@@ -13,9 +13,9 @@ use super::{
 };
 
 const MAX_APPROVAL_COMMENT_PAGES: u64 = 31;
-const WRITE_PROPOSAL_MARKER: &str = "<!-- koelu:write-proposal:";
-const WRITE_CLAIM_MARKER: &str = "<!-- koelu:write-claim:";
-const WRITE_RESULT_MARKER: &str = "<!-- koelu:write-result:";
+const WRITE_PROPOSAL_MARKER: &str = "<!-- drukal:write-proposal:";
+const WRITE_CLAIM_MARKER: &str = "<!-- drukal:write-claim:";
+const WRITE_RESULT_MARKER: &str = "<!-- drukal:write-result:";
 
 /// A write request whose approval and source still match GitHub's live state
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -242,7 +242,12 @@ pub(crate) fn claim_marker(approval_comment: u64, issued_at: u64) -> String {
 }
 
 pub(crate) fn claim_from_body(body: &str) -> Option<WriteClaim> {
-    let value = body.split_once(WRITE_CLAIM_MARKER)?.1.split_once(" -->")?.0;
+    let value = body
+        .split_once(WRITE_CLAIM_MARKER)
+        .or_else(|| body.split_once("<!-- koelu:write-claim:"))?
+        .1
+        .split_once(" -->")?
+        .0;
     let (approval_comment, issued_at) = value.split_once(':')?;
     Some(WriteClaim {
         approval_comment: approval_comment.parse().ok().filter(|value| *value > 0)?,
@@ -251,7 +256,8 @@ pub(crate) fn claim_from_body(body: &str) -> Option<WriteClaim> {
 }
 
 pub(crate) fn result_from_body(body: &str) -> Option<u64> {
-    body.split_once(WRITE_RESULT_MARKER)?
+    body.split_once(WRITE_RESULT_MARKER)
+        .or_else(|| body.split_once("<!-- koelu:write-result:"))?
         .1
         .split_once(" -->")?
         .0
@@ -313,6 +319,7 @@ pub(super) fn proposal_marker(proposal: &WriteProposal) -> String {
 pub(super) fn proposals_from_body(body: &str) -> impl Iterator<Item = WriteProposal> + '_ {
     body.split(WRITE_PROPOSAL_MARKER)
         .skip(1)
+        .chain(body.split("<!-- koelu:write-proposal:").skip(1))
         .filter_map(|part| parse_proposal(part.split_once(" -->")?.0))
 }
 
@@ -478,7 +485,7 @@ mod tests {
             sha: "a".repeat(40),
         };
         let mut page_one =
-            vec![json!({"user": {"login": "koelu[bot]"}, "body": proposal_marker(&proposal)})];
+            vec![json!({"user": {"login": "drukal[bot]"}, "body": proposal_marker(&proposal)})];
         page_one.extend(
             (1..100).map(|id| json!({"user": {"login": format!("user-{id}")}, "body": "noise"})),
         );
@@ -487,22 +494,22 @@ mod tests {
             .collect::<Vec<_>>();
         let mut evidence = ApprovalEvidence::default();
         for page in [&page_one, &page_two] {
-            extend_approval_evidence(&mut evidence, page, 9, &proposal, "koelu[bot]");
+            extend_approval_evidence(&mut evidence, page, 9, &proposal, "drukal[bot]");
         }
         assert!(evidence.proposal);
         assert!(!evidence.dispatched);
 
         let claimed = vec![json!({
-            "user": {"login": "koelu[bot]"},
+            "user": {"login": "drukal[bot]"},
             "body": claim_marker(9, 1),
         })];
-        extend_approval_evidence(&mut evidence, &claimed, 9, &proposal, "koelu[bot]");
+        extend_approval_evidence(&mut evidence, &claimed, 9, &proposal, "drukal[bot]");
         assert!(evidence.dispatched);
 
         let mut missing = ApprovalEvidence::default();
         let mut stale = proposal.clone();
         stale.sha = "b".repeat(40);
-        extend_approval_evidence(&mut missing, &page_one, 9, &stale, "koelu[bot]");
+        extend_approval_evidence(&mut missing, &page_one, 9, &stale, "drukal[bot]");
         assert!(!missing.proposal);
         assert_eq!(approval_comment_pages(3_100)?, 31);
         assert!(approval_comment_pages(3_101).is_err());
@@ -534,16 +541,16 @@ mod tests {
             vec![newer, proposal.clone()]
         );
         assert!(prior_reply_exists(
-            &[json!({"user": {"login": "koelu[bot]"}, "body": combined})],
+            &[json!({"user": {"login": "drukal[bot]"}, "body": combined})],
             proposal.request,
         ));
         let mut evidence = ApprovalEvidence::default();
         extend_approval_evidence(
             &mut evidence,
-            &[json!({"user": {"login": "koelu[bot]"}, "body": combined})],
+            &[json!({"user": {"login": "drukal[bot]"}, "body": combined})],
             9,
             &proposal,
-            "koelu[bot]",
+            "drukal[bot]",
         );
         assert!(evidence.proposal);
         assert_eq!(
@@ -554,22 +561,41 @@ mod tests {
             })
         );
         assert_eq!(result_from_body(&result_marker(9)), Some(9));
+        let previous = proposal_marker(&proposal).replace("drukal:", "koelu:");
+        assert_eq!(
+            proposals_from_body(&previous).next().as_ref(),
+            Some(&proposal)
+        );
+        assert_eq!(
+            claim_from_body("<!-- koelu:write-claim:9:1 -->"),
+            claim_from_body(&claim_marker(9, 1)),
+        );
+        assert_eq!(result_from_body("<!-- koelu:write-result:9 -->"), Some(9));
+        for login in ["drukal[bot]", "koelu[bot]", "somebody-else"] {
+            assert_eq!(
+                prior_reply_exists(
+                    &[json!({"user": {"login": login}, "body": "<!-- koelu:mention:9 -->"})],
+                    9,
+                ),
+                login != "somebody-else",
+            );
+        }
         for (body, expected) in [
             (claim_marker(9, 1), true),
             (result_marker(9), true),
             (legacy_reply_marker(9), false),
         ] {
             let comments = vec![json!({
-                "user": {"login": "koelu[bot]"},
+                "user": {"login": "drukal[bot]"},
                 "body": body,
             })];
             let mut evidence = ApprovalEvidence::default();
-            extend_approval_evidence(&mut evidence, &comments, 9, &proposal, "koelu[bot]");
+            extend_approval_evidence(&mut evidence, &comments, 9, &proposal, "drukal[bot]");
             assert_eq!(evidence.dispatched, expected);
         }
         for marker in [reply_marker(9), legacy_reply_marker(9)] {
             let comments = vec![json!({
-                "user": {"login": "koelu[bot]"},
+                "user": {"login": "drukal[bot]"},
                 "body": marker,
             })];
             assert!(prior_reply_exists(&comments, 9));

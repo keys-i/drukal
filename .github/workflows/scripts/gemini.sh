@@ -10,24 +10,24 @@ compgen -G '/etc/gemini-cli/policies/*.toml' > /dev/null && exit 1
 for unsafe in .gemini .env GEMINI.md; do
   unsafe_path="$workspace/$unsafe"
   if [[ -e "$unsafe_path" || -L "$unsafe_path" ]]; then
-    printf 'Koelu stopped: hosted editing will not load repository-controlled Gemini configuration: %s\n' "$unsafe" >&2
+    printf 'Drukal stopped: hosted editing will not load repository-controlled Gemini configuration: %s\n' "$unsafe" >&2
     exit 1
   fi
 done
 cd -- "$workspace"
 
-export GEMINI_CLI_HOME="${RUNNER_TEMP:?}/koelu-gemini"
+export GEMINI_CLI_HOME="${RUNNER_TEMP:?}/drukal-gemini"
 
 approval_mode=auto_edit
-if [[ "${KOELU_READ_ONLY:-0}" == 1 ]]; then
+if [[ "${DRUKAL_READ_ONLY:-0}" == 1 ]]; then
   approval_mode=plan
 fi
 
 arguments=(--skip-trust --approval-mode "$approval_mode" --admin-policy "$policy" --output-format json --prompt '')
-if [[ -n "${KOELU_MODEL:-}" ]]; then
-  arguments+=(--model "$KOELU_MODEL")
+if [[ -n "${DRUKAL_MODEL:-}" ]]; then
+  arguments+=(--model "$DRUKAL_MODEL")
 fi
-readonly stderr_file="$(mktemp "${RUNNER_TEMP}/koelu-gemini-stderr.XXXXXX")"
+readonly stderr_file="$(mktemp "${RUNNER_TEMP}/drukal-gemini-stderr.XXXXXX")"
 trap 'rm -f -- "$stderr_file"' EXIT
 set +e
 gemini "${arguments[@]}" 2> "$stderr_file" | jq -er '

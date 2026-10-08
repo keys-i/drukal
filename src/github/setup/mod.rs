@@ -17,9 +17,9 @@ use consent::{PRIVACY_VERSION, TERMS_VERSION};
 pub use files::{checks, local_files};
 use files::{existing_configuration, refuse_existing_configuration, setup_files, write_setup_file};
 
-const TRUSTED_SOLVER_REPOSITORY: &str = "keys-i/koelu";
-pub const TERMS_URL: &str = "https://github.com/keys-i/koelu/blob/main/docs/TERMS.md";
-pub const PRIVACY_URL: &str = "https://github.com/keys-i/koelu/blob/main/docs/PRIVACY.md";
+const TRUSTED_SOLVER_REPOSITORY: &str = "keys-i/drukal";
+pub const TERMS_URL: &str = "https://github.com/keys-i/drukal/blob/main/docs/TERMS.md";
+pub const PRIVACY_URL: &str = "https://github.com/keys-i/drukal/blob/main/docs/PRIVACY.md";
 
 #[derive(Clone, Debug)]
 /// A trusted solver repository pinned to one immutable commit
@@ -38,23 +38,23 @@ impl SourceRef {
 
     /// Parse an explicit solver pin without contacting GitHub
     ///
-    /// Only Koelu’s repository and a full lowercase commit hash are accepted
+    /// Only Drukal’s repository and a full lowercase commit hash are accepted
     ///
     /// ```
-    /// use koelu::setup::SourceRef;
+    /// use drukal::setup::SourceRef;
     ///
-    /// let pin = format!("keys-i/koelu@{}", "a".repeat(40));
+    /// let pin = format!("keys-i/drukal@{}", "a".repeat(40));
     /// assert_eq!(SourceRef::parse(&pin)?.joined(), pin);
-    /// assert!(SourceRef::parse("keys-i/koelu@main").is_err());
+    /// assert!(SourceRef::parse("keys-i/drukal@main").is_err());
     /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn parse(value: &str) -> Result<Self> {
-        let (repository, commit) = value
-            .split_once('@')
-            .ok_or_else(|| anyhow!("--solver-ref requires keys-i/koelu@40_LOWERCASE_COMMIT_SHA"))?;
+        let (repository, commit) = value.split_once('@').ok_or_else(|| {
+            anyhow!("--solver-ref requires keys-i/drukal@40_LOWERCASE_COMMIT_SHA")
+        })?;
         github::validate_repository(repository)?;
         if repository != TRUSTED_SOLVER_REPOSITORY || !valid_commit(commit) {
-            bail!("--solver-ref requires keys-i/koelu@40_LOWERCASE_COMMIT_SHA");
+            bail!("--solver-ref requires keys-i/drukal@40_LOWERCASE_COMMIT_SHA");
         }
         Ok(Self {
             repository: repository.to_owned(),
@@ -182,19 +182,19 @@ pub fn install(
         bail!("read {TERMS_URL} and {PRIVACY_URL}, then rerun with --accept-terms if you agree");
     }
     if !overwrite && existing.is_some() && !reuse_agreement {
-        bail!("refusing to overwrite existing Koelu configuration");
+        bail!("refusing to overwrite existing Drukal configuration");
     }
     let agreement = if reuse_agreement {
         existing
             .as_ref()
             .and_then(|configuration| configuration.get("agreement"))
             .cloned()
-            .ok_or_else(|| anyhow!("existing Koelu agreement was missing"))?
+            .ok_or_else(|| anyhow!("existing Drukal agreement was missing"))?
     } else {
-        let app = apps::public_app(apps::KOELU_SLUG)?;
+        let app = apps::public_app(apps::DRUKAL_SLUG)?;
         apps::require_app_owner(&app)?;
         apps::require_permissions(&app)?;
-        apps::open_installation(apps::KOELU_SLUG, repo)?;
+        apps::open_installation(apps::DRUKAL_SLUG, repo)?;
         consent::agreement(repo, autofix)?
     };
     let files = setup_files(
@@ -206,7 +206,7 @@ pub fn install(
         autofix,
     )?;
     for (path, content) in files {
-        let replace = overwrite && path.ends_with(".github/koelu.toml");
+        let replace = overwrite && path.ends_with(".github/drukal.toml");
         write_setup_file(&path, content.as_bytes(), replace)?;
     }
     Ok(())
@@ -250,11 +250,11 @@ pub fn has_verified_agreement(repo: &str, directory: &Path, autofix: bool) -> Re
 }
 
 pub(crate) fn repository_configuration(github: &github::GitHub) -> Result<Option<Value>> {
-    if let Some(content) = github.raw_optional("contents/.github/koelu.toml")? {
+    if let Some(content) = github.raw_optional("contents/.github/drukal.toml")? {
         return Ok(toml::from_str(&content).ok());
     }
     Ok(github
-        .raw_optional("contents/.github/koelu.json")?
+        .raw_optional("contents/.github/drukal.json")?
         .and_then(|content| serde_json::from_str(&content).ok()))
 }
 
@@ -262,12 +262,12 @@ pub(crate) fn repository_configuration(github: &github::GitHub) -> Result<Option
 pub(crate) fn configuration_checks(value: &Value) -> Result<Vec<String>> {
     let names = value["checks"]
         .as_array()
-        .ok_or_else(|| anyhow!("Koelu configuration has no required checks"))?
+        .ok_or_else(|| anyhow!("Drukal configuration has no required checks"))?
         .iter()
         .map(|name| {
             name.as_str()
                 .map(str::to_owned)
-                .ok_or_else(|| anyhow!("Koelu configuration has an invalid required check"))
+                .ok_or_else(|| anyhow!("Drukal configuration has an invalid required check"))
         })
         .collect::<Result<Vec<_>>>()?;
     checks(&names)
@@ -478,7 +478,7 @@ pub fn run(
         "agreement_required": !accept_terms,
         "app_public": true,
         "app_permissions": apps::permissions(),
-        "app": apps::KOELU_SLUG,
+        "app": apps::DRUKAL_SLUG,
         "overwrite": overwrite,
         "apply": apply,
         "autofix": autofix,
@@ -530,7 +530,9 @@ mod tests {
             json!({"checks": ["test", 1]}),
             json!({"checks": [" "]}),
             json!({"checks": ["test\nother"]}),
+            json!({"checks": ["Drukal dependasolve gate"]}),
             json!({"checks": ["Koelu dependasolve gate"]}),
+            json!({"checks": ["Koela dependasolve gate"]}),
             json!({"checks": ["x".repeat(201)]}),
             json!({"checks": vec!["test"; 33]}),
         ] {
@@ -542,11 +544,11 @@ mod tests {
     #[test]
     fn source_reference_table_covers_repository_and_commit_edges() {
         for (value, valid) in [
-            (format!("keys-i/koelu@{}", "a".repeat(40)), true),
+            (format!("keys-i/drukal@{}", "a".repeat(40)), true),
             (format!("owner/repo@{}", "a".repeat(40)), false),
-            (format!("keys-i/koelu@{}", "A".repeat(40)), false),
-            ("keys-i/koelu@short".to_owned(), false),
-            (format!("keys-i/koelu@{}", "g".repeat(40)), false),
+            (format!("keys-i/drukal@{}", "A".repeat(40)), false),
+            ("keys-i/drukal@short".to_owned(), false),
+            (format!("keys-i/drukal@{}", "g".repeat(40)), false),
         ] {
             assert_eq!(SourceRef::parse(&value).is_ok(), valid, "{value}");
         }
@@ -559,7 +561,7 @@ mod tests {
             "main",
             &json!({"name": "main", "commit": {"sha": commit}}),
         )?;
-        assert_eq!(source.joined(), format!("keys-i/koelu@{commit}"));
+        assert_eq!(source.joined(), format!("keys-i/drukal@{commit}"));
         for (default_branch, response) in [
             ("main", json!({"name": "other", "commit": {"sha": commit}})),
             ("main", json!({"name": "main", "commit": {"sha": "short"}})),
@@ -575,23 +577,23 @@ mod tests {
         }
         for (response, valid) in [
             (
-                json!({"full_name": "keys-i/koelu", "default_branch": "main"}),
+                json!({"full_name": "keys-i/drukal", "default_branch": "main"}),
                 true,
             ),
             (
-                json!({"full_name": "keys-i/koelu", "default_branch": "feature/a"}),
+                json!({"full_name": "keys-i/drukal", "default_branch": "feature/a"}),
                 true,
             ),
             (
-                json!({"full_name": "other/koelu", "default_branch": "main"}),
+                json!({"full_name": "other/drukal", "default_branch": "main"}),
                 false,
             ),
             (
-                json!({"full_name": "keys-i/koelu", "default_branch": ""}),
+                json!({"full_name": "keys-i/drukal", "default_branch": ""}),
                 false,
             ),
             (
-                json!({"full_name": "keys-i/koelu", "default_branch": "bad\nbranch"}),
+                json!({"full_name": "keys-i/drukal", "default_branch": "bad\nbranch"}),
                 false,
             ),
             (json!({}), false),
@@ -609,14 +611,14 @@ mod tests {
             temporary.path().join(".github/dependabot.yaml"),
             "version: 2\n",
         )?;
-        let source = SourceRef::parse(&format!("keys-i/koelu@{}", "a".repeat(40)))?;
+        let source = SourceRef::parse(&format!("keys-i/drukal@{}", "a".repeat(40)))?;
         let files = local_files(temporary.path(), &source, &["check".to_owned()], true)?;
         assert_eq!(files.len(), 1);
         let configuration = files
             .iter()
-            .find(|(path, _)| path.ends_with(".github/koelu.toml"))
+            .find(|(path, _)| path.ends_with(".github/drukal.toml"))
             .map(|(_, content)| toml::from_str::<Value>(content))
-            .expect("generated Koelu configuration")?;
+            .expect("generated Drukal configuration")?;
         assert_eq!(configuration["schema"], 1);
         assert_eq!(configuration["source"], source.joined());
         assert_eq!(configuration["checks"], json!(["check"]));
@@ -629,31 +631,31 @@ mod tests {
 
         let orchestrator = include_str!("../../../.github/workflows/orchestrate.yml");
         for secret in [
-            "KOELU_APP_PRIVATE_KEY",
-            "KOELU_APP_CLIENT_ID",
-            "KOELU_APP_SLUG",
-            "KOELU_GEMINI_API_KEY",
-            "KOELU_CEREBRAS_API_KEY",
-            "KOELU_XAI_API_KEY",
-            "KOELU_GROQ_API_KEY",
-            "KOELU_CLOUDFLARE_API_TOKEN",
-            "KOELU_CLOUDFLARE_ACCOUNT_ID",
-            "KOELU_OPENROUTER_API_KEY",
-            "KOELU_GEMINI_PRIVATE_OK",
-            "KOELU_CEREBRAS_PRIVATE_OK",
-            "KOELU_XAI_PRIVATE_OK",
-            "KOELU_GROQ_PRIVATE_OK",
-            "KOELU_CLOUDFLARE_PRIVATE_OK",
-            "KOELU_OPENROUTER_PRIVATE_OK",
+            "DRUKAL_APP_PRIVATE_KEY",
+            "DRUKAL_APP_CLIENT_ID",
+            "DRUKAL_APP_SLUG",
+            "DRUKAL_GEMINI_API_KEY",
+            "DRUKAL_CEREBRAS_API_KEY",
+            "DRUKAL_XAI_API_KEY",
+            "DRUKAL_GROQ_API_KEY",
+            "DRUKAL_CLOUDFLARE_API_TOKEN",
+            "DRUKAL_CLOUDFLARE_ACCOUNT_ID",
+            "DRUKAL_OPENROUTER_API_KEY",
+            "DRUKAL_GEMINI_PRIVATE_OK",
+            "DRUKAL_CEREBRAS_PRIVATE_OK",
+            "DRUKAL_XAI_PRIVATE_OK",
+            "DRUKAL_GROQ_PRIVATE_OK",
+            "DRUKAL_CLOUDFLARE_PRIVATE_OK",
+            "DRUKAL_OPENROUTER_PRIVATE_OK",
         ] {
             assert!(orchestrator.contains(secret));
             assert!(!serde_json::to_string(&configuration)?.contains(secret));
         }
-        for local in ["KOELU_LAYA_ENABLED", "KOELU_LAYA_API_KEY"] {
+        for local in ["DRUKAL_LAYA_ENABLED", "DRUKAL_LAYA_API_KEY"] {
             assert!(!serde_json::to_string(&configuration)?.contains(local));
             assert!(!orchestrator.contains(local));
         }
-        assert!(orchestrator.contains("koelu agent serve --once"));
+        assert!(orchestrator.contains("drukal agent serve --once"));
         assert!(orchestrator.contains("issue_comment:\n    types: [created]"));
         assert!(orchestrator.contains("pull_request_review_comment:\n    types: [created]"));
         assert!(orchestrator.contains(
@@ -661,17 +663,17 @@ mod tests {
         ));
         assert!(orchestrator.contains("push:\n    branches: [main]"));
         assert!(orchestrator.contains(
-            "--repo \"$GITHUB_REPOSITORY\" --issue \"$KOELU_EVENT_ISSUE\" --comment \"$KOELU_EVENT_COMMENT\""
+            "--repo \"$GITHUB_REPOSITORY\" --issue \"$DRUKAL_EVENT_ISSUE\" --comment \"$DRUKAL_EVENT_COMMENT\""
         ));
         assert!(orchestrator.contains("github.event_name != 'issue_comment' &&"));
-        assert!(orchestrator.contains("--repo \"$GITHUB_REPOSITORY\" --pr \"$KOELU_EVENT_PR\""));
-        assert!(orchestrator.contains("koelu agent targets --max-reviews 10"));
-        assert!(orchestrator.contains("koelu agent targets --max-reviews 4"));
+        assert!(orchestrator.contains("--repo \"$GITHUB_REPOSITORY\" --pr \"$DRUKAL_EVENT_PR\""));
+        assert!(orchestrator.contains("drukal agent targets --max-reviews 10"));
+        assert!(orchestrator.contains("drukal agent targets --max-reviews 4"));
         assert!(orchestrator.contains("uses: ./.github/workflows/solve.yml"));
         assert!(orchestrator.contains("max-parallel: 4"));
         assert!(!orchestrator.contains("--owner"));
-        assert!(!orchestrator.contains("target/release/koelu agent sweep"));
-        assert!(!orchestrator.contains("target/release/koelu agent respond"));
+        assert!(!orchestrator.contains("target/release/drukal agent sweep"));
+        assert!(!orchestrator.contains("target/release/drukal agent respond"));
         assert!(!orchestrator.contains("runs-on: self-hosted"));
         assert!(orchestrator.contains("actions/cache@5a3ec84eff668545956fd18022155c47e93e2684"));
         assert!(orchestrator.contains("if: steps.binary.outputs.cache-hit != 'true'"));
@@ -679,17 +681,17 @@ mod tests {
         let solve = include_str!("../../../.github/workflows/solve.yml");
         assert!(
             checks.contains(
-                "key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}"
+                "key: drukal-binary-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}"
             )
         );
         assert!(
             orchestrator.contains(
-                "key: koelu-binary-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha || github.sha }}"
+                "key: drukal-binary-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha || github.sha }}"
             )
         );
         assert!(orchestrator.contains("needs: [targets, mentions]"));
         assert!(solve.contains(
-            "key: koelu-solver-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha }}"
+            "key: drukal-solver-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha }}"
         ));
         assert!(orchestrator.contains("permissions:\n  contents: read"));
         assert!(!orchestrator.contains("contents: write"));
@@ -755,7 +757,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         let temporary = tempfile::tempdir()?;
-        let binary = temporary.path().join("target/release/koelu");
+        let binary = temporary.path().join("target/release/drukal");
         fs::create_dir_all(binary.parent().unwrap())?;
         fs::write(
             &binary,
@@ -785,7 +787,7 @@ mod tests {
                 .env_clear()
                 .env("PATH", std::env::var_os("PATH").unwrap_or_default())
                 .env("GITHUB_EVENT_NAME", event)
-                .env("KOELU_EVENT_PR", pr)
+                .env("DRUKAL_EVENT_PR", pr)
                 .env("GITHUB_RUN_NUMBER", "1")
                 .env("GITHUB_REPOSITORY", "owner/repo")
                 .env("GITHUB_OUTPUT", &output)
@@ -804,7 +806,10 @@ mod tests {
     #[test]
     fn setup_response_parsing_is_bounded_and_unambiguous() {
         for (response, expected) in [
-            (r#"{"nameWithOwner":"keys-i/koelu"}"#, Some("keys-i/koelu")),
+            (
+                r#"{"nameWithOwner":"keys-i/drukal"}"#,
+                Some("keys-i/drukal"),
+            ),
             (r#"{"nameWithOwner":"bad"}"#, None),
             (r#"{"nameWithOwner":null}"#, None),
             ("not json", None),
@@ -849,9 +854,9 @@ mod tests {
     #[test]
     fn repository_matching_is_case_insensitive_but_exact() {
         for (left, right, expected) in [
-            ("keys-i/koelu", "keys-i/koelu", true),
-            ("keys-i/koelu", "keys-i/other", false),
-            ("keys-i/koelu", "other/koelu", false),
+            ("keys-i/drukal", "keys-i/drukal", true),
+            ("keys-i/drukal", "keys-i/other", false),
+            ("keys-i/drukal", "other/drukal", false),
         ] {
             assert_eq!(same_repository(left, right), expected, "{left} / {right}");
         }

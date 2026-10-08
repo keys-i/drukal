@@ -7,32 +7,32 @@ use serde_json::Value;
 #[test]
 fn cli_matrix_covers_human_commands_and_help_without_help_subcommands() {
     for arguments in [
-        vec!["koelu", "--help"],
-        vec!["koelu", "setup", "--help"],
-        vec!["koelu", "code", "--help"],
-        vec!["koelu", "dependasolve", "--help"],
-        vec!["koelu", "agent", "--help"],
-        vec!["koelu", "agent", "run", "--help"],
-        vec!["koelu", "agent", "doctor", "--help"],
-        vec!["koelu", "runs", "--help"],
-        vec!["koelu", "inspect", "--help"],
-        vec!["koelu", "cancel", "--help"],
-        vec!["koelu", "resume", "--help"],
-        vec!["koelu", "apply", "--help"],
+        vec!["drukal", "--help"],
+        vec!["drukal", "setup", "--help"],
+        vec!["drukal", "code", "--help"],
+        vec!["drukal", "dependasolve", "--help"],
+        vec!["drukal", "agent", "--help"],
+        vec!["drukal", "agent", "run", "--help"],
+        vec!["drukal", "agent", "doctor", "--help"],
+        vec!["drukal", "runs", "--help"],
+        vec!["drukal", "inspect", "--help"],
+        vec!["drukal", "cancel", "--help"],
+        vec!["drukal", "resume", "--help"],
+        vec!["drukal", "apply", "--help"],
         vec![
-            "koelu", "--theme", "tide", "--output", "json", "agent", "doctor", "--help",
+            "drukal", "--theme", "tide", "--output", "json", "agent", "doctor", "--help",
         ],
     ] {
         let result = Cli::try_parse_from(arguments);
         assert!(result.is_err_and(|error| error.exit_code() == 0));
     }
 
-    for arguments in [vec!["koelu", "help"], vec!["koelu", "agent", "help"]] {
+    for arguments in [vec!["drukal", "help"], vec!["drukal", "agent", "help"]] {
         let result = Cli::try_parse_from(arguments);
         assert!(result.is_err_and(|error| error.exit_code() != 0));
     }
 
-    for arguments in [vec!["koelu", "--help"], vec!["koelu", "agent", "--help"]] {
+    for arguments in [vec!["drukal", "--help"], vec!["drukal", "agent", "--help"]] {
         let help = Cli::try_parse_from(arguments)
             .expect_err("help exits after rendering")
             .to_string();
@@ -44,7 +44,7 @@ fn cli_matrix_covers_human_commands_and_help_without_help_subcommands() {
         );
     }
 
-    let help = Cli::try_parse_from(["koelu", "setup", "--help"])
+    let help = Cli::try_parse_from(["drukal", "setup", "--help"])
         .expect_err("help exits after rendering")
         .to_string();
     assert!(
@@ -61,16 +61,16 @@ fn cli_matrix_covers_human_commands_and_help_without_help_subcommands() {
 fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
     for arguments in [
         vec![
-            "koelu",
+            "drukal",
             "dependasolve",
             "--repo",
             "owner/repo",
             "--check",
             "test",
         ],
-        vec!["koelu", "setup", "--repo", "owner/repo", "--check", "test"],
+        vec!["drukal", "setup", "--repo", "owner/repo", "--check", "test"],
         vec![
-            "koelu",
+            "drukal",
             "dependasolve",
             "--repo",
             "owner/repo",
@@ -78,18 +78,18 @@ fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
             "test",
             "lint",
         ],
-        vec!["koelu", "agent", "run", "--", "exec", "--help"],
-        vec!["koelu", "agent", "doctor"],
-        vec!["koelu", "agent", "ask", "What changed?"],
+        vec!["drukal", "agent", "run", "--", "exec", "--help"],
+        vec!["drukal", "agent", "doctor"],
+        vec!["drukal", "agent", "ask", "What changed?"],
         vec![
-            "koelu",
+            "drukal",
             "agent",
             "follow-up",
             "run_0123456789abcdef0123456789abcdef",
             "Why?",
         ],
         vec![
-            "koelu",
+            "drukal",
             "agent",
             "serve",
             "--owner",
@@ -97,11 +97,11 @@ fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
             "--app-client-id",
             "Iv1.abc",
             "--app-private-key-file",
-            "/secure/koelu.pem",
+            "/secure/drukal.pem",
             "--once",
         ],
         vec![
-            "koelu",
+            "drukal",
             "agent",
             "resolve",
             "--repo",
@@ -110,7 +110,7 @@ fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
             "1",
         ],
         vec![
-            "koelu",
+            "drukal",
             "agent",
             "review",
             "--repo",
@@ -119,7 +119,7 @@ fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
             "1",
         ],
         vec![
-            "koelu",
+            "drukal",
             "agent",
             "respond",
             "--repo",
@@ -130,7 +130,7 @@ fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
             "2",
         ],
         vec![
-            "koelu",
+            "drukal",
             "code",
             "fix it",
             "--check",
@@ -147,7 +147,7 @@ fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
     }
 
     let cli = Cli::try_parse_from([
-        "koelu",
+        "drukal",
         "dependasolve",
         "--repo",
         "owner/repo",
@@ -163,10 +163,10 @@ fn parser_accepts_agent_hierarchy_and_dependasolve_check_aliases() {
     assert!(arguments.no_overwrite);
 
     for command in ["doctor", "resolve", "review"] {
-        let result = Cli::try_parse_from(["koelu", command, "--repo", "owner/repo", "--pr", "1"]);
-        assert!(result.is_err(), "{command} must live under koelu agent");
+        let result = Cli::try_parse_from(["drukal", command, "--repo", "owner/repo", "--pr", "1"]);
+        assert!(result.is_err(), "{command} must live under drukal agent");
     }
-    let result = Cli::try_parse_from(["koelu", "agent", "sweep", "--owner", "keys-i"]);
+    let result = Cli::try_parse_from(["drukal", "agent", "sweep", "--owner", "keys-i"]);
     assert!(result.is_err(), "sweep is not a public agent command");
 }
 
@@ -201,9 +201,9 @@ fn setup_requires_explicit_consent_for_json_output() {
     for expected in [
         "owner/repo",
         "`test` as CI evidence",
-        ".github/koelu.toml",
+        ".github/drukal.toml",
         "closed issue",
-        "keys-i/koelu",
+        "keys-i/drukal",
         setup::TERMS_URL,
         setup::PRIVACY_URL,
     ] {
@@ -216,7 +216,7 @@ fn json_failures_share_one_bounded_contract() {
     for (arguments, kind, expected) in [
         (
             vec![
-                "koelu",
+                "drukal",
                 "--output",
                 "json",
                 "dependasolve",
@@ -231,7 +231,7 @@ fn json_failures_share_one_bounded_contract() {
             "--solver-ref requires",
         ),
         (
-            vec!["koelu", "dependasolve", "--output=json"],
+            vec!["drukal", "dependasolve", "--output=json"],
             "usage",
             "required arguments",
         ),

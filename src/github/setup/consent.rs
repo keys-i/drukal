@@ -10,7 +10,7 @@ pub(super) const TERMS_VERSION: &str = "2026-09-27-t5";
 pub(super) const PRIVACY_VERSION: &str = "2026-09-27-p5";
 const PREVIOUS_TERMS_VERSION: &str = "2026-09-27-t4";
 const PREVIOUS_PRIVACY_VERSION: &str = "2026-09-27-p4";
-const CONSENT_ISSUE_TITLE: &str = "Koelu service agreement";
+const CONSENT_ISSUE_TITLE: &str = "Drukal service agreement";
 
 pub(super) fn agreement(repo: &str, autofix: bool) -> Result<Value> {
     let user = github::api("user", None, "GET", false)?
@@ -48,7 +48,7 @@ fn consent_comment(repo: &str, autofix: Option<bool>) -> String {
         (PREVIOUS_TERMS_VERSION, PREVIOUS_PRIVACY_VERSION)
     };
     format!(
-        "Koelu service agreement acceptance\n\nI accept the Koelu Terms of Use ({terms}) and Privacy Policy ({privacy}) for {repo}.{}",
+        "Drukal service agreement acceptance\n\nI accept the Drukal Terms of Use ({terms}) and Privacy Policy ({privacy}) for {repo}.{}",
         autofix.map_or(String::new(), |enabled| format!(
             "\n\nAutomatic Dependabot repair: {}.",
             if enabled { "enabled" } else { "disabled" }
@@ -61,7 +61,7 @@ fn create_consent_receipt(repo: &str, accepted_by: &str, autofix: bool) -> Resul
         &format!("repos/{repo}/issues"),
         Some(&json!({
             "title": CONSENT_ISSUE_TITLE,
-            "body": format!("Accepted by @{accepted_by}. This closed issue is Koelu's service-agreement receipt."),
+            "body": format!("Accepted by @{accepted_by}. This closed issue is Drukal's service-agreement receipt."),
         })),
         "POST",
         false,
@@ -336,16 +336,16 @@ mod tests {
 
     #[test]
     fn consent_receipt_requires_exact_authenticated_evidence() {
-        let repo = "keys-i/koelu";
+        let repo = "keys-i/drukal";
         let issue = json!({
             "number": 7,
-            "html_url": "https://github.com/keys-i/koelu/issues/7",
+            "html_url": "https://github.com/keys-i/drukal/issues/7",
             "title": CONSENT_ISSUE_TITLE,
             "state": "closed",
         });
         let comment = json!({
             "id": 9,
-            "issue_url": "https://api.github.com/repos/keys-i/koelu/issues/7",
+            "issue_url": "https://api.github.com/repos/keys-i/drukal/issues/7",
             "user": {"login": "keys-i"},
             "body": consent_comment(repo, None),
         });
@@ -386,7 +386,7 @@ mod tests {
         }
         let current_comment = json!({
             "id": 9,
-            "issue_url": "https://api.github.com/repos/keys-i/koelu/issues/7",
+            "issue_url": "https://api.github.com/repos/keys-i/drukal/issues/7",
             "user": {"login": "keys-i"},
             "body": consent_comment(repo, Some(true)),
         });

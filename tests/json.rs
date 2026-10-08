@@ -7,17 +7,17 @@ use std::process::{Command, Output};
 use serde_json::{Value, json};
 
 fn invoke(directory: &Path, arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_koelu"))
+    Command::new(env!("CARGO_BIN_EXE_drukal"))
         .args(arguments)
         .current_dir(directory)
         .env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .output()
-        .expect("Koelu must start")
+        .expect("Drukal must start")
 }
 
 #[test]
-fn usage_errors_are_one_json_document_on_stderr() -> koelu::Result<()> {
+fn usage_errors_are_one_json_document_on_stderr() -> drukal::Result<()> {
     let directory = tempfile::tempdir()?;
     let output = invoke(directory.path(), &["dependasolve", "--output=json"]);
     assert_eq!(output.status.code(), Some(2));
@@ -36,7 +36,7 @@ fn usage_errors_are_one_json_document_on_stderr() -> koelu::Result<()> {
 }
 
 #[test]
-fn runtime_errors_are_one_json_document_on_stderr() -> koelu::Result<()> {
+fn runtime_errors_are_one_json_document_on_stderr() -> drukal::Result<()> {
     let directory = tempfile::tempdir()?;
     let output = invoke(
         directory.path(),
@@ -69,9 +69,9 @@ fn runtime_errors_are_one_json_document_on_stderr() -> koelu::Result<()> {
 }
 
 #[test]
-fn setup_preview_lists_toml_and_yaml_without_writing_them() -> koelu::Result<()> {
+fn setup_preview_lists_toml_and_yaml_without_writing_them() -> drukal::Result<()> {
     let directory = tempfile::tempdir()?;
-    let pin = format!("keys-i/koelu@{}", "a".repeat(40));
+    let pin = format!("keys-i/drukal@{}", "a".repeat(40));
     let output = invoke(
         directory.path(),
         &[
@@ -110,7 +110,7 @@ fn setup_preview_lists_toml_and_yaml_without_writing_them() -> koelu::Result<()>
         result["files"],
         json!([
             root.join(".github/dependabot.yml"),
-            root.join(".github/koelu.toml"),
+            root.join(".github/drukal.toml"),
         ])
     );
     assert_eq!(fs::read_dir(directory.path())?.count(), 0);
@@ -118,13 +118,13 @@ fn setup_preview_lists_toml_and_yaml_without_writing_them() -> koelu::Result<()>
 }
 
 #[test]
-fn setup_preview_preserves_existing_dependabot_config() -> koelu::Result<()> {
+fn setup_preview_preserves_existing_dependabot_config() -> drukal::Result<()> {
     let directory = tempfile::tempdir()?;
     fs::create_dir(directory.path().join(".github"))?;
     let existing = directory.path().join(".github/dependabot.yaml");
     let contents = "version: 2\nupdates: []\n";
     fs::write(&existing, contents)?;
-    let pin = format!("keys-i/koelu@{}", "a".repeat(40));
+    let pin = format!("keys-i/drukal@{}", "a".repeat(40));
     let output = invoke(
         directory.path(),
         &[
@@ -145,7 +145,7 @@ fn setup_preview_preserves_existing_dependabot_config() -> koelu::Result<()> {
     );
     assert!(output.stderr.is_empty());
     let document: Value = serde_json::from_slice(&output.stdout)?;
-    let expected = directory.path().canonicalize()?.join(".github/koelu.toml");
+    let expected = directory.path().canonicalize()?.join(".github/drukal.toml");
     assert_eq!(document["result"]["files"], json!([expected]));
     assert_eq!(fs::read_to_string(existing)?, contents);
     assert_eq!(fs::read_dir(directory.path().join(".github"))?.count(), 1);
@@ -153,11 +153,11 @@ fn setup_preview_preserves_existing_dependabot_config() -> koelu::Result<()> {
 }
 
 #[test]
-fn setup_preview_refuses_paths_outside_the_selected_directory() -> koelu::Result<()> {
+fn setup_preview_refuses_paths_outside_the_selected_directory() -> drukal::Result<()> {
     let directory = tempfile::tempdir()?;
     let outside = tempfile::tempdir()?;
     std::os::unix::fs::symlink(outside.path(), directory.path().join(".github"))?;
-    let pin = format!("keys-i/koelu@{}", "a".repeat(40));
+    let pin = format!("keys-i/drukal@{}", "a".repeat(40));
     let output = invoke(
         directory.path(),
         &[

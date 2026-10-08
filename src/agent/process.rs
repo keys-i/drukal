@@ -22,26 +22,26 @@ const SENSITIVE_ENVIRONMENT: &[&str] = &[
     "OPENAI_API_KEY",
     "CODEX_API_KEY",
     "ANTHROPIC_API_KEY",
-    "KOELU_GEMINI_API_KEY",
-    "KOELU_CEREBRAS_API_KEY",
-    "KOELU_XAI_API_KEY",
-    "KOELU_GROQ_API_KEY",
-    "KOELU_CLOUDFLARE_API_TOKEN",
-    "KOELU_CLOUDFLARE_ACCOUNT_ID",
-    "KOELU_OPENROUTER_API_KEY",
-    "KOELU_LAYA_API_KEY",
-    "KOELU_APP_PRIVATE_KEY",
-    "KOELU_APP_PRIVATE_KEY_FILE",
-    "KOELU_APP_CLIENT_ID",
-    "KOELU_APP_ID",
-    "KOELU_APP_TOKEN_COMMAND",
+    "DRUKAL_GEMINI_API_KEY",
+    "DRUKAL_CEREBRAS_API_KEY",
+    "DRUKAL_XAI_API_KEY",
+    "DRUKAL_GROQ_API_KEY",
+    "DRUKAL_CLOUDFLARE_API_TOKEN",
+    "DRUKAL_CLOUDFLARE_ACCOUNT_ID",
+    "DRUKAL_OPENROUTER_API_KEY",
+    "DRUKAL_LAYA_API_KEY",
+    "DRUKAL_APP_PRIVATE_KEY",
+    "DRUKAL_APP_PRIVATE_KEY_FILE",
+    "DRUKAL_APP_CLIENT_ID",
+    "DRUKAL_APP_ID",
+    "DRUKAL_APP_TOKEN_COMMAND",
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "GH_HOST",
     "GH_REPO",
     "GH_ENTERPRISE_TOKEN",
     "GITHUB_ENTERPRISE_TOKEN",
-    "KOELU_PUSH_TOKEN",
+    "DRUKAL_PUSH_TOKEN",
 ];
 
 #[derive(Debug)]
@@ -266,6 +266,9 @@ pub fn safe_environment() -> BTreeMap<String, String> {
 fn sensitive_environment_name(name: &str) -> bool {
     let name = name.to_ascii_uppercase();
     SENSITIVE_ENVIRONMENT.contains(&name.as_str())
+        || ["KOELU_", "KOELA_", "RADY_", "PEKIN_"]
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
         || name.ends_with("_API_KEY")
         || name.ends_with("_TOKEN")
         || name.ends_with("_SECRET")
@@ -442,9 +445,11 @@ mod tests {
         }
         for name in [
             "ACME_API_KEY",
-            "KOELU_LAYA_API_KEY",
-            "KOELU_APP_ID",
+            "DRUKAL_LAYA_API_KEY",
+            "DRUKAL_APP_ID",
+            "DRUKAL_APP_TOKEN_COMMAND",
             "KOELU_APP_TOKEN_COMMAND",
+            "KOELA_APP_PRIVATE_KEY_FILE",
             "CLOUD_TOKEN",
             "AWS_PROFILE",
             "GOOGLE_APPLICATION_CREDENTIALS",

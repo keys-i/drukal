@@ -64,10 +64,10 @@ impl Usage {
     /// A missing usage total also blocks budgeted work
     ///
     /// ```
-    /// use koelu::agent::{Harness, Usage};
+    /// use drukal::agent::{Harness, Usage};
     /// use std::collections::BTreeMap;
     ///
-    /// # fn main() -> koelu::Result<()> {
+    /// # fn main() -> drukal::Result<()> {
     /// let mut usage = Usage::new(Some(10))?;
     /// usage.before_call()?;
     /// usage.record(Harness::Command, Some(BTreeMap::from([
@@ -105,7 +105,7 @@ impl Usage {
             return Ok(());
         };
         if self.missing {
-            bail!("token usage is unavailable, so Koelu cannot enforce the budget");
+            bail!("token usage is unavailable, so Drukal cannot enforce the budget");
         }
         if self.total_tokens() >= maximum {
             bail!("token budget is exhausted");
@@ -134,7 +134,7 @@ impl Usage {
             values: values.unwrap_or_default(),
         });
         if !known && self.max_tokens.is_some() {
-            bail!("token usage is unavailable, so Koelu cannot enforce the budget");
+            bail!("token usage is unavailable, so Drukal cannot enforce the budget");
         }
         if self.max_tokens.is_some_and(|maximum| {
             self.records

@@ -49,7 +49,7 @@ pub(super) fn deliver_with_auth(
         orchestrator_harness == config.harness,
     );
     if config.harness == Harness::Codex {
-        agent::which("codex").ok_or_else(|| anyhow!("install codex before using Koelu"))?;
+        agent::which("codex").ok_or_else(|| anyhow!("install codex before using Drukal"))?;
     } else {
         agent::executable(config.harness)?;
     }
@@ -92,7 +92,7 @@ pub(super) fn deliver_with_auth(
         (None, _) => None,
     };
 
-    let branch = format!("koelu/{}", random_hex(6)?);
+    let branch = format!("drukal/{}", random_hex(6)?);
     if let (Some(remote), Some(_)) = (origin.as_deref(), hosted_auth.as_ref()) {
         git::require_push_access(&directory, remote, &branch, network_auth.as_ref())?;
     }
@@ -147,9 +147,9 @@ pub(super) fn deliver_with_auth(
     };
     run.persist()?;
     run.ui
-        .title("Koelu", "Turn a request into a checked change");
+        .title("Drukal", "Turn a request into a checked change");
     run.ui.note(&format!(
-        "Run {}. Stop it with `koelu cancel {}`",
+        "Run {}. Stop it with `drukal cancel {}`",
         run.stored.id(),
         run.stored.id()
     ));
@@ -914,7 +914,7 @@ fn repository_access(info: &Value, repo: &str, hosted: bool) -> Result<()> {
 fn configure_hosted_identity(workspace: &Path, cancel_file: Option<&Path>) -> Result<()> {
     git(
         workspace,
-        &["config", "user.name", "Koelu[bot]"],
+        &["config", "user.name", "Drukal[bot]"],
         cancel_file,
     )?;
     git(
@@ -922,7 +922,7 @@ fn configure_hosted_identity(workspace: &Path, cancel_file: Option<&Path>) -> Re
         &[
             "config",
             "user.email",
-            "koelu[bot]@users.noreply.github.com",
+            "drukal[bot]@users.noreply.github.com",
         ],
         cancel_file,
     )?;
@@ -996,14 +996,14 @@ fn run_worker(
     let environment = if harness == Harness::Command {
         let mut environment = BTreeMap::from([
             (
-                "KOELU_MODEL".to_owned(),
+                "DRUKAL_MODEL".to_owned(),
                 model.unwrap_or_default().to_owned(),
             ),
-            ("KOELU_AGENT_COUNT".to_owned(), agents.to_string()),
-            ("KOELU_READ_ONLY".to_owned(), "0".to_owned()),
+            ("DRUKAL_AGENT_COUNT".to_owned(), agents.to_string()),
+            ("DRUKAL_READ_ONLY".to_owned(), "0".to_owned()),
         ]);
         if let Some(mcp) = mcp {
-            environment.insert("KOELU_MCP_CONFIG".to_owned(), mcp.claude_json());
+            environment.insert("DRUKAL_MCP_CONFIG".to_owned(), mcp.claude_json());
         }
         environment
     } else {

@@ -298,7 +298,7 @@ fn report_theme_matrix_renders_complete_self_contained_documents() -> Result<()>
             assert!(report.contains("<math"), "{theme:?}");
             assert!(report.contains("class=\"duck\""), "{theme:?}");
             assert!(
-                report.contains("alt=\"Koelu duck inspecting a keyboard\""),
+                report.contains("alt=\"Drukal duck inspecting a keyboard\""),
                 "{theme:?}"
             );
             assert!(report.contains("Run report"), "{theme:?}");

@@ -25,7 +25,7 @@ pub(crate) struct ServeArgs {
     #[arg(long)]
     owner: Option<String>,
 
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 
     #[arg(long, default_value_t = 30)]
@@ -35,11 +35,11 @@ pub(crate) struct ServeArgs {
     max_reviews: usize,
 
     /// GitHub App client ID used to mint installation tokens automatically
-    #[arg(long, env = "KOELU_APP_CLIENT_ID")]
+    #[arg(long, env = "DRUKAL_APP_CLIENT_ID")]
     app_client_id: Option<String>,
 
     /// Path to the GitHub App RSA private key
-    #[arg(long, env = "KOELU_APP_PRIVATE_KEY_FILE", value_name = "PEM")]
+    #[arg(long, env = "DRUKAL_APP_PRIVATE_KEY_FILE", value_name = "PEM")]
     app_private_key_file: Option<PathBuf>,
 
     #[arg(long)]
@@ -173,12 +173,12 @@ pub(crate) fn targets(arguments: ServeArgs) -> Result<()> {
     if !(1..=100).contains(&arguments.max_reviews) {
         bail!("use a target limit from 1 to 100");
     }
-    let seed = env::var("KOELU_TARGET_SEED")
+    let seed = env::var("DRUKAL_TARGET_SEED")
         .ok()
         .filter(|value| !value.is_empty())
         .map(|value| value.parse::<usize>())
         .transpose()
-        .map_err(|_| anyhow::anyhow!("KOELU_TARGET_SEED must be a non-negative integer"))?
+        .map_err(|_| anyhow::anyhow!("DRUKAL_TARGET_SEED must be a non-negative integer"))?
         .unwrap_or_default();
     let mut tokens =
         ServiceTokenProvider::new(&arguments, github::InstallationTokenScope::Targets)?;
@@ -294,7 +294,7 @@ pub(super) fn record_sweep_failure(failures: &mut Vec<String>, repo: &str, error
 
 pub(super) fn validate_owner_filter(owner: Option<&str>) -> Result<()> {
     if let Some(owner) = owner {
-        github::validate_repository(&format!("{owner}/koelu"))?;
+        github::validate_repository(&format!("{owner}/drukal"))?;
     }
     Ok(())
 }
@@ -321,15 +321,15 @@ mod tests {
             app_client_id: None,
             app_private_key_file: None,
             once: true,
-            repo: Some("keys-i/koelu".to_owned()),
+            repo: Some("keys-i/drukal".to_owned()),
             issue: Some(9),
             comment: Some(42),
             review_comment: false,
             pr: None,
         };
-        assert_eq!(comment_target(&arguments)?, Some(("keys-i/koelu", 9, 42)));
+        assert_eq!(comment_target(&arguments)?, Some(("keys-i/drukal", 9, 42)));
         arguments.review_comment = true;
-        assert_eq!(comment_target(&arguments)?, Some(("keys-i/koelu", 9, 42)));
+        assert_eq!(comment_target(&arguments)?, Some(("keys-i/drukal", 9, 42)));
         arguments.comment = Some(0);
         assert!(comment_target(&arguments).is_err());
         arguments.comment = None;
@@ -359,21 +359,21 @@ mod tests {
             app_client_id: None,
             app_private_key_file: None,
             once: false,
-            repo: Some("keys-i/koelu".to_owned()),
+            repo: Some("keys-i/drukal".to_owned()),
             issue: None,
             comment: None,
             review_comment: false,
             pr: Some(5),
         };
-        assert_eq!(pull_target(&arguments)?, Some(("keys-i/koelu", Some(5))));
+        assert_eq!(pull_target(&arguments)?, Some(("keys-i/drukal", Some(5))));
         arguments.pr = Some(0);
         assert!(pull_target(&arguments).is_err());
         arguments.pr = None;
-        assert_eq!(pull_target(&arguments)?, Some(("keys-i/koelu", None)));
+        assert_eq!(pull_target(&arguments)?, Some(("keys-i/drukal", None)));
         arguments.repo = None;
         arguments.pr = Some(5);
         assert!(pull_target(&arguments).is_err());
-        arguments.repo = Some("keys-i/koelu".to_owned());
+        arguments.repo = Some("keys-i/drukal".to_owned());
         arguments.pr = Some(5);
         arguments.issue = Some(9);
         assert!(pull_target(&arguments).is_err());
@@ -407,22 +407,22 @@ mod tests {
         assert_eq!(failures, ["installation 1: temporary failure"]);
 
         let target = reviews::CentralTarget {
-            repo: "keys-i/koelu".to_owned(),
+            repo: "keys-i/drukal".to_owned(),
             owner: "keys-i".to_owned(),
-            name: "koelu".to_owned(),
+            name: "drukal".to_owned(),
             private: false,
             number: 7,
             checks: vec!["test".to_owned()],
-            solver_ref: "keys-i/koelu@0123456789abcdef0123456789abcdef01234567".to_owned(),
+            solver_ref: "keys-i/drukal@0123456789abcdef0123456789abcdef01234567".to_owned(),
             autofix: false,
         };
         assert_eq!(
             serde_json::json!({"include": [target]}),
             serde_json::json!({
                 "include": [{
-                    "repo": "keys-i/koelu", "owner": "keys-i", "name": "koelu",
+                    "repo": "keys-i/drukal", "owner": "keys-i", "name": "drukal",
                     "private": false, "number": 7, "checks": ["test"],
-                    "solver_ref": "keys-i/koelu@0123456789abcdef0123456789abcdef01234567",
+                    "solver_ref": "keys-i/drukal@0123456789abcdef0123456789abcdef01234567",
                     "autofix": false
                 }]
             })
@@ -430,13 +430,13 @@ mod tests {
 
         let targets = (1..=150)
             .map(|number| reviews::CentralTarget {
-                repo: "keys-i/koelu".to_owned(),
+                repo: "keys-i/drukal".to_owned(),
                 owner: "keys-i".to_owned(),
-                name: "koelu".to_owned(),
+                name: "drukal".to_owned(),
                 private: false,
                 number,
                 checks: vec!["test".to_owned()],
-                solver_ref: "keys-i/koelu@0123456789abcdef0123456789abcdef01234567".to_owned(),
+                solver_ref: "keys-i/drukal@0123456789abcdef0123456789abcdef01234567".to_owned(),
                 autofix: false,
             })
             .collect::<Vec<_>>();

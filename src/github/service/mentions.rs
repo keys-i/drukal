@@ -35,7 +35,7 @@ pub(super) fn respond_to_comment(
     comment: u64,
 ) -> Result<()> {
     github::validate_repository(repo)?;
-    let model = env::var("KOELU_MODEL")
+    let model = env::var("DRUKAL_MODEL")
         .ok()
         .filter(|value| !value.is_empty());
     let token = tokens.mention_token(repo)?;
@@ -58,7 +58,7 @@ pub(super) fn respond_to_comment(
         None => false,
     };
     if !accepted {
-        bail!("the target repository has no verified Koelu agreement");
+        bail!("the target repository has no verified Drukal agreement");
     }
     if arguments.review_comment {
         return crate::mentions::respond_to_review_comment(
@@ -104,7 +104,7 @@ pub(super) fn sweep_with_token(
     validate_owner_filter(arguments.owner.as_deref())?;
     let repositories =
         github::authenticated_pages("installation/repositories", "repositories", token)?;
-    let model = env::var("KOELU_MODEL")
+    let model = env::var("DRUKAL_MODEL")
         .ok()
         .filter(|value| !value.is_empty());
     let mut failures = Vec::new();
@@ -184,7 +184,7 @@ pub(super) fn sweep_with_token(
             ) {
                 if crate::mentions::is_hosted_unavailable(&error) {
                     eprintln!(
-                        "{name}: model providers are cooling down; Koelu will retry these mentions next pass"
+                        "{name}: model providers are cooling down; Drukal will retry these mentions next pass"
                     );
                     repo_failed = true;
                     break;
@@ -542,11 +542,11 @@ fn hosted_config(
         checks: vec![DELIVERY_CHECK.to_owned()],
         harness: arguments.harness,
         agents: 1,
-        model: env::var("KOELU_MODEL")
+        model: env::var("DRUKAL_MODEL")
             .ok()
             .filter(|value| !value.is_empty()),
         model_choices: agent::routing::parse_model_choices(
-            &env::var("KOELU_MODEL_CHOICES").unwrap_or_default(),
+            &env::var("DRUKAL_MODEL_CHOICES").unwrap_or_default(),
         ),
         review_model: None,
         plan: None,
@@ -582,10 +582,10 @@ fn hosted_config(
 }
 
 fn app_slug() -> String {
-    env::var("KOELU_APP_SLUG")
+    env::var("DRUKAL_APP_SLUG")
         .ok()
         .filter(|slug| !slug.is_empty())
-        .unwrap_or_else(|| "koelu".to_owned())
+        .unwrap_or_else(|| "drukal".to_owned())
 }
 
 fn terminal_error(error: &anyhow::Error) -> String {
@@ -636,21 +636,21 @@ mod tests {
     fn central_sweep_accepts_only_canonical_issue_urls() {
         for (repo, url, expected) in [
             (
-                "keys-i/koelu",
-                "https://api.github.com/repos/keys-i/koelu/issues/42",
+                "keys-i/drukal",
+                "https://api.github.com/repos/keys-i/drukal/issues/42",
                 Some(42),
             ),
             (
-                "keys-i/koelu",
-                "https://api.github.com/repos/other/koelu/issues/42",
+                "keys-i/drukal",
+                "https://api.github.com/repos/other/drukal/issues/42",
                 None,
             ),
             (
-                "keys-i/koelu",
-                "https://api.github.com/repos/keys-i/koelu/issues/0",
+                "keys-i/drukal",
+                "https://api.github.com/repos/keys-i/drukal/issues/0",
                 None,
             ),
-            ("keys-i/koelu", "not-a-url", None),
+            ("keys-i/drukal", "not-a-url", None),
         ] {
             assert_eq!(comment_issue(repo, url), expected, "{url}");
         }
@@ -660,19 +660,19 @@ mod tests {
     fn dispatch_claims_choose_the_first_bot_marker_and_terminal_errors_are_bounded() {
         let marker = crate::mentions::claim_marker(9, 1);
         let mut comments = vec![
-            serde_json::json!({"id": 8, "user": {"login": "koelu[bot]"}, "body": marker}),
+            serde_json::json!({"id": 8, "user": {"login": "drukal[bot]"}, "body": marker}),
             serde_json::json!({"id": 4, "user": {"login": "someone"}, "body": marker}),
-            serde_json::json!({"id": 3, "user": {"login": "Koelu[bot]"}, "body": marker}),
+            serde_json::json!({"id": 3, "user": {"login": "Drukal[bot]"}, "body": marker}),
         ];
-        assert_eq!(first_claim(&comments, "koelu[bot]", 9), Some(3));
-        assert!(unfinished_claim(&comments, "koelu[bot]", 9, 3));
-        assert!(!unfinished_claim(&comments, "koelu[bot]", 9, 8));
+        assert_eq!(first_claim(&comments, "drukal[bot]", 9), Some(3));
+        assert!(unfinished_claim(&comments, "drukal[bot]", 9, 3));
+        assert!(!unfinished_claim(&comments, "drukal[bot]", 9, 8));
         comments.push(serde_json::json!({
             "id": 10,
-            "user": {"login": "koelu[bot]"},
+            "user": {"login": "drukal[bot]"},
             "body": crate::mentions::result_marker(9),
         }));
-        assert!(!unfinished_claim(&comments, "koelu[bot]", 9, 3));
+        assert!(!unfinished_claim(&comments, "drukal[bot]", 9, 3));
         assert_eq!(terminal_error(&anyhow!("failed\nnow")), "failednow");
         assert_eq!(
             terminal_error(&anyhow!("{}", "x".repeat(1_001)))
@@ -688,19 +688,19 @@ mod tests {
         for (case, claims, result, expected) in [
             (
                 "active",
-                vec![(3, "koelu[bot]", now - CLAIM_LEASE.as_secs() + 1)],
+                vec![(3, "drukal[bot]", now - CLAIM_LEASE.as_secs() + 1)],
                 false,
                 None,
             ),
             (
                 "stale",
-                vec![(3, "koelu[bot]", now - CLAIM_LEASE.as_secs())],
+                vec![(3, "drukal[bot]", now - CLAIM_LEASE.as_secs())],
                 false,
                 Some(3),
             ),
             (
                 "completed",
-                vec![(3, "koelu[bot]", now - CLAIM_LEASE.as_secs())],
+                vec![(3, "drukal[bot]", now - CLAIM_LEASE.as_secs())],
                 true,
                 None,
             ),
@@ -713,15 +713,15 @@ mod tests {
             (
                 "duplicate winner",
                 vec![
-                    (8, "koelu[bot]", now - CLAIM_LEASE.as_secs()),
-                    (3, "koelu[bot]", now - CLAIM_LEASE.as_secs() + 1),
+                    (8, "drukal[bot]", now - CLAIM_LEASE.as_secs()),
+                    (3, "drukal[bot]", now - CLAIM_LEASE.as_secs() + 1),
                 ],
                 false,
                 None,
             ),
             (
                 "claim then abort recovery",
-                vec![(3, "koelu[bot]", now - CLAIM_LEASE.as_secs())],
+                vec![(3, "drukal[bot]", now - CLAIM_LEASE.as_secs())],
                 false,
                 Some(3),
             ),
@@ -731,7 +731,7 @@ mod tests {
                 scan_claim_record(
                     &mut scan,
                     "owner/repository",
-                    "koelu[bot]",
+                    "drukal[bot]",
                     &serde_json::json!({
                         "id": id,
                         "user": {"login": bot},
@@ -744,10 +744,10 @@ mod tests {
                 scan_claim_record(
                     &mut scan,
                     "owner/repository",
-                    "koelu[bot]",
+                    "drukal[bot]",
                     &serde_json::json!({
                         "id": 10,
-                        "user": {"login": "koelu[bot]"},
+                        "user": {"login": "drukal[bot]"},
                         "issue_url": "https://api.github.com/repos/owner/repository/issues/7",
                         "body": crate::mentions::result_marker(9),
                     }),

@@ -20,11 +20,11 @@ fn run_block(workflow: &str, step: &str) -> String {
 }
 
 #[test]
-fn pinned_solver_scripts_support_new_and_legacy_names() -> koelu::Result<()> {
+fn pinned_solver_scripts_support_new_and_legacy_names() -> drukal::Result<()> {
     for (step, directory, new, legacy) in [
         (
             "Validate pull request trust boundary",
-            "koelu-workflow-scripts/.github/workflows/scripts",
+            "drukal-workflow-scripts/.github/workflows/scripts",
             "trust.sh",
             "pr-trust.sh",
         ),
@@ -71,9 +71,9 @@ fn pinned_solver_scripts_support_new_and_legacy_names() -> koelu::Result<()> {
 }
 
 #[test]
-fn pr_mentions_select_their_own_review_and_repair_target() -> koelu::Result<()> {
+fn pr_mentions_select_their_own_review_and_repair_target() -> drukal::Result<()> {
     let root = tempfile::tempdir()?;
-    let binary = root.path().join("target/release/koelu");
+    let binary = root.path().join("target/release/drukal");
     fs::create_dir_all(binary.parent().unwrap())?;
     fs::write(
         &binary,
@@ -97,7 +97,7 @@ fn pr_mentions_select_their_own_review_and_repair_target() -> koelu::Result<()> 
                 .env("GITHUB_REPOSITORY", "owner/repo")
                 .env("GITHUB_RUN_NUMBER", "12")
                 .env("GITHUB_EVENT_NAME", event)
-                .env("KOELU_EVENT_PR", number)
+                .env("DRUKAL_EVENT_PR", number)
                 .env("GITHUB_OUTPUT", root.path().join("outputs"))
                 .output()?;
             let valid = number == "5";

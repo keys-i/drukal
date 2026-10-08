@@ -57,23 +57,23 @@ impl Provider {
 
     const fn key_name(self) -> &'static str {
         match self {
-            Self::Gemini => "KOELU_GEMINI_API_KEY",
-            Self::Groq => "KOELU_GROQ_API_KEY",
-            Self::Cloudflare => "KOELU_CLOUDFLARE_API_TOKEN",
-            Self::Cerebras => "KOELU_CEREBRAS_API_KEY",
-            Self::OpenRouter => "KOELU_OPENROUTER_API_KEY",
-            Self::Xai => "KOELU_XAI_API_KEY",
+            Self::Gemini => "DRUKAL_GEMINI_API_KEY",
+            Self::Groq => "DRUKAL_GROQ_API_KEY",
+            Self::Cloudflare => "DRUKAL_CLOUDFLARE_API_TOKEN",
+            Self::Cerebras => "DRUKAL_CEREBRAS_API_KEY",
+            Self::OpenRouter => "DRUKAL_OPENROUTER_API_KEY",
+            Self::Xai => "DRUKAL_XAI_API_KEY",
         }
     }
 
     const fn private_opt_in(self) -> &'static str {
         match self {
-            Self::Gemini => "KOELU_GEMINI_PRIVATE_OK",
-            Self::Groq => "KOELU_GROQ_PRIVATE_OK",
-            Self::Cloudflare => "KOELU_CLOUDFLARE_PRIVATE_OK",
-            Self::Cerebras => "KOELU_CEREBRAS_PRIVATE_OK",
-            Self::OpenRouter => "KOELU_OPENROUTER_PRIVATE_OK",
-            Self::Xai => "KOELU_XAI_PRIVATE_OK",
+            Self::Gemini => "DRUKAL_GEMINI_PRIVATE_OK",
+            Self::Groq => "DRUKAL_GROQ_PRIVATE_OK",
+            Self::Cloudflare => "DRUKAL_CLOUDFLARE_PRIVATE_OK",
+            Self::Cerebras => "DRUKAL_CEREBRAS_PRIVATE_OK",
+            Self::OpenRouter => "DRUKAL_OPENROUTER_PRIVATE_OK",
+            Self::Xai => "DRUKAL_XAI_PRIVATE_OK",
         }
     }
 }
@@ -407,11 +407,11 @@ fn credentials(provider: Provider) -> std::result::Result<Option<Credentials>, P
         ));
     }
     let account_id = if provider == Provider::Cloudflare {
-        let value = env::var("KOELU_CLOUDFLARE_ACCOUNT_ID").unwrap_or_default();
+        let value = env::var("DRUKAL_CLOUDFLARE_ACCOUNT_ID").unwrap_or_default();
         if !valid_account_id(&value) {
             return Err(ProviderFailure::new(
                 FailureKind::Authentication,
-                "KOELU_CLOUDFLARE_ACCOUNT_ID is missing or invalid",
+                "DRUKAL_CLOUDFLARE_ACCOUNT_ID is missing or invalid",
             ));
         }
         Some(value)
@@ -784,8 +784,8 @@ mod tests {
         assert!(valid_model_identifier("@cf/openai/gpt-oss-120b"));
         assert!(valid_model_identifier("meta-llama/llama-4:free"));
         assert!(!valid_model_identifier("https://provider.invalid/model"));
-        assert!(valid_slug("koelu"));
-        assert!(!valid_slug("koelu/model"));
+        assert!(valid_slug("drukal"));
+        assert!(!valid_slug("drukal/model"));
         assert!(!should_scout(Tier::Deep, 1));
         assert!(!should_scout(Tier::Fast, 2));
         assert!(should_scout(Tier::Deep, 2));
@@ -808,7 +808,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires KOELU_OPENROUTER_API_KEY and a live free endpoint"]
+    #[ignore = "requires DRUKAL_OPENROUTER_API_KEY and a live free endpoint"]
     fn live_openrouter_route_follows_an_exact_reply_request() {
         let provider = Provider::OpenRouter;
         let credentials = credentials(provider)

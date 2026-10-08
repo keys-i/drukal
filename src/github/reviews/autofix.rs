@@ -26,7 +26,7 @@ pub(crate) fn candidate(
     expected_base: &str,
 ) -> Result<Option<Candidate>> {
     let configuration = setup::repository_configuration(github)?
-        .ok_or_else(|| anyhow!("Koelu configuration is missing"))?;
+        .ok_or_else(|| anyhow!("Drukal configuration is missing"))?;
     if configuration["autofix"] != true {
         return Ok(None);
     }
@@ -79,12 +79,13 @@ pub(crate) fn candidate(
     scope.sort();
     scope.dedup();
     let marker = marker(number, head);
+    let previous_marker = format!("Koelu dependency repair source: PR {number}, head {head}");
     let existing = github.pages("pulls?state=all&sort=created&direction=desc", None)?;
     if existing.iter().any(|pull| {
         pull["user"]["type"] == "Bot"
             && pull["body"]
                 .as_str()
-                .is_some_and(|body| body.contains(&marker))
+                .is_some_and(|body| body.contains(&marker) || body.contains(&previous_marker))
     }) {
         return Ok(None);
     }
@@ -125,7 +126,7 @@ fn repair_reason(pull: &Value, failed: &[String]) -> Option<String> {
 }
 
 fn marker(number: u64, head: &str) -> String {
-    format!("Koelu dependency repair source: PR {number}, head {head}")
+    format!("Drukal dependency repair source: PR {number}, head {head}")
 }
 
 fn failed_required_checks(rows: &[Value], required: &[String]) -> Vec<String> {

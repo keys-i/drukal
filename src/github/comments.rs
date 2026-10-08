@@ -135,7 +135,7 @@ impl GitHub {
                 None => bail!("GitHub omitted conversation pagination"),
             }
         }
-        bail!("consecutive Koelu replies exceed the cleanup limit; tidy the conversation manually")
+        bail!("consecutive Drukal replies exceed the cleanup limit; tidy the conversation manually")
     }
 
     /// Publish the current response before collapsing any older replies
@@ -227,7 +227,9 @@ fn write_response(
     if let Some(previous) = previous {
         // Keep request receipts when the visible answer changes
         let receipt = |line: &&str| {
-            (line.starts_with("<!-- koelu:") || line.starts_with("<!-- rady:mention:"))
+            (line.starts_with("<!-- drukal:")
+                || line.starts_with("<!-- koelu:")
+                || line.starts_with("<!-- rady:mention:"))
                 && line.ends_with(" -->")
         };
         let mut receipts = body
@@ -294,7 +296,7 @@ fn write_response(
             continue;
         }
         if older["viewerCanMinimize"] == false {
-            bail!("GitHub won't let Koelu collapse an older reply");
+            bail!("GitHub won't let Drukal collapse an older reply");
         }
         let id = older["id"]
             .as_str()
@@ -321,18 +323,20 @@ mod tests {
 
     fn comment(id: u64) -> Value {
         json!({"__typename": "IssueComment", "fullDatabaseId": id.to_string(), "id": format!("node-{id}"),
-            "author": {"login": "koelu[bot]", "__typename": "Bot"}, "body": format!("<!-- koelu:mention:{id} -->\nOld answer"),
+            "author": {"login": "drukal[bot]", "__typename": "Bot"}, "body": format!("<!-- drukal:mention:{id} -->\nOld answer"),
             "isMinimized": false, "viewerCanMinimize": true})
     }
 
     #[test]
     fn newest_reply_is_edited_before_older_replies_are_collapsed() -> Result<()> {
-        let tail = [comment(6_000_000_002), comment(1)];
+        let mut latest = comment(6_000_000_002);
+        latest["body"] = json!("<!-- koelu:mention:6000000002 -->\nOld answer");
+        let tail = [latest, comment(1)];
         let mut calls = Vec::new();
         write_response(
             7,
             "Latest answer",
-            "koelu[bot]",
+            "drukal[bot]",
             Response::Comment,
             &tail,
             |path, body, method| {
@@ -359,7 +363,7 @@ mod tests {
         write_response(
             7,
             "Hello",
-            "koelu[bot]",
+            "drukal[bot]",
             Response::Comment,
             &[],
             |path, _, method| {
@@ -377,7 +381,7 @@ mod tests {
                 write_response(
                     7,
                     "Hello",
-                    "koelu[bot]",
+                    "drukal[bot]",
                     Response::Comment,
                     &[foreign.clone()],
                     |_, _, _| { panic!("another author must never be changed") }
@@ -391,11 +395,11 @@ mod tests {
     #[test]
     fn graphql_and_rest_names_identify_the_same_app() {
         let mut reply = comment(1);
-        assert!(own_response(&reply, "koelu[bot]"));
-        reply["author"]["login"] = json!("koelu");
-        assert!(own_response(&reply, "koelu[bot]"));
+        assert!(own_response(&reply, "drukal[bot]"));
+        reply["author"]["login"] = json!("drukal");
+        assert!(own_response(&reply, "drukal[bot]"));
         reply["author"]["__typename"] = json!("User");
-        assert!(!own_response(&reply, "koelu[bot]"));
+        assert!(!own_response(&reply, "drukal[bot]"));
     }
 
     #[test]
@@ -405,7 +409,7 @@ mod tests {
             write_response(
                 7,
                 "Latest",
-                "koelu[bot]",
+                "drukal[bot]",
                 Response::Comment,
                 &[comment(2), comment(1)],
                 |_, _, _| {
@@ -423,15 +427,15 @@ mod tests {
         let mut previous = comment(1);
         previous["body"] = json!(
             (0..2_200)
-                .map(|id| format!("<!-- koelu:mention:{id} -->\n"))
+                .map(|id| format!("<!-- drukal:mention:{id} -->\n"))
                 .collect::<String>()
         );
-        let fresh = format!("<!-- koelu:mention:2 -->\n{}", "answer".repeat(1_000));
+        let fresh = format!("<!-- drukal:mention:2 -->\n{}", "answer".repeat(1_000));
         let mut calls = Vec::new();
         write_response(
             7,
             &fresh,
-            "koelu[bot]",
+            "drukal[bot]",
             Response::Comment,
             &[previous],
             |path, body, method| {

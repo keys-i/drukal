@@ -81,7 +81,7 @@ where
                 record_sweep_failure(
                     &mut failures,
                     name,
-                    &anyhow!("Koelu configuration has an invalid trusted solver source: {error}"),
+                    &anyhow!("Drukal configuration has an invalid trusted solver source: {error}"),
                 );
                 continue;
             }
@@ -89,7 +89,7 @@ where
                 record_sweep_failure(
                     &mut failures,
                     name,
-                    &anyhow!("Koelu configuration has no trusted solver source"),
+                    &anyhow!("Drukal configuration has no trusted solver source"),
                 );
                 continue;
             }
@@ -204,12 +204,12 @@ mod tests {
     fn solver_source_is_an_explicit_trusted_commit() {
         for (source, valid) in [
             (
-                "keys-i/koelu@0123456789abcdef0123456789abcdef01234567",
+                "keys-i/drukal@0123456789abcdef0123456789abcdef01234567",
                 true,
             ),
-            ("keys-i/koelu@main", false),
+            ("keys-i/drukal@main", false),
             (
-                "other/koelu@0123456789abcdef0123456789abcdef01234567",
+                "other/drukal@0123456789abcdef0123456789abcdef01234567",
                 false,
             ),
         ] {

@@ -27,11 +27,11 @@ use setup::{dependasolve, setup as setup_repository};
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "koelu",
+    name = "drukal",
     version,
     about = "Human-first, evidence-gated coding and dependency review",
     disable_help_subcommand = true,
-    after_help = "Examples:\n  koelu setup\n  koelu code \"add structured logging\" --check test\n  koelu agent ask \"why is this test failing?\"\n  koelu dependasolve --repo owner/repo --check test --apply"
+    after_help = "Examples:\n  drukal setup\n  drukal code \"add structured logging\" --check test\n  drukal agent ask \"why is this test failing?\"\n  drukal dependasolve --repo owner/repo --check test --apply"
 )]
 struct Cli {
     #[arg(long, value_enum, global = true, default_value = "auto")]
@@ -46,16 +46,18 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Connect this repository to Koelu
-    #[command(after_help = "Example:\n  koelu setup")]
+    /// Connect this repository to Drukal
+    #[command(after_help = "Example:\n  drukal setup")]
     Setup(SetupArgs),
 
     /// Turn a request into a checked local change or pull request
-    #[command(after_help = "Example:\n  koelu code \"fix the parser\" --check test")]
+    #[command(after_help = "Example:\n  drukal code \"fix the parser\" --check test")]
     Code(Box<CodeArgs>),
 
-    /// Configure Koelu's Dependabot review
-    #[command(after_help = "Example:\n  koelu dependasolve --repo owner/repo --check test --apply")]
+    /// Configure Drukal's Dependabot review
+    #[command(
+        after_help = "Example:\n  drukal dependasolve --repo owner/repo --check test --apply"
+    )]
     Dependasolve(DependSolveArgs),
 
     /// List retained coding runs
@@ -76,7 +78,7 @@ enum Commands {
     /// Run or check a native agent harness
     #[command(
         disable_help_subcommand = true,
-        after_help = "Examples:\n  koelu agent ask \"how does this parser work?\"\n  koelu agent follow-up RUN_ID \"where is that called?\"\n  koelu agent serve --app-client-id CLIENT_ID --app-private-key-file KEY.pem\n  koelu agent doctor"
+        after_help = "Examples:\n  drukal agent ask \"how does this parser work?\"\n  drukal agent follow-up RUN_ID \"where is that called?\"\n  drukal agent serve --app-client-id CLIENT_ID --app-private-key-file KEY.pem\n  drukal agent doctor"
     )]
     Agent {
         #[command(subcommand)]
@@ -130,7 +132,7 @@ struct AskArgs {
     #[arg(long)]
     model: Option<String>,
 
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 
     #[arg(long, default_value_t = 300)]
@@ -145,7 +147,7 @@ struct FollowUpArgs {
     #[arg(long)]
     model: Option<String>,
 
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 
     #[arg(long, default_value_t = 300)]
@@ -157,7 +159,7 @@ struct DependSolveArgs {
     #[arg(long)]
     repo: String,
 
-    /// Optional trusted solver source; defaults to the latest keys-i/koelu commit
+    /// Optional trusted solver source; defaults to the latest keys-i/drukal commit
     #[arg(long)]
     solver_ref: Option<String>,
 
@@ -174,7 +176,7 @@ struct DependSolveArgs {
     #[arg(long)]
     apply: bool,
 
-    /// Accept the current Koelu service terms and privacy policy for this repository
+    /// Accept the current Drukal service terms and privacy policy for this repository
     #[arg(long, requires = "apply")]
     accept_terms: bool,
 
@@ -196,7 +198,7 @@ struct SetupArgs {
     #[arg(long, default_value = ".")]
     directory: PathBuf,
 
-    /// Optional trusted solver source; defaults to the latest keys-i/koelu commit
+    /// Optional trusted solver source; defaults to the latest keys-i/drukal commit
     #[arg(long)]
     solver_ref: Option<String>,
 
@@ -204,7 +206,7 @@ struct SetupArgs {
     #[arg(long)]
     no_overwrite: bool,
 
-    /// Accept the current Koelu service terms and privacy policy
+    /// Accept the current Drukal service terms and privacy policy
     #[arg(long)]
     accept_terms: bool,
 
@@ -230,13 +232,13 @@ struct ApplyArgs {
 
 #[derive(Debug, Args)]
 struct DoctorArgs {
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 }
 
 #[derive(Debug, Args)]
 struct AgentArgs {
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -257,7 +259,7 @@ struct ReviewArgs {
     repo: String,
     #[arg(long)]
     pr: u64,
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 }
 
@@ -269,7 +271,7 @@ struct RespondArgs {
     issue: u64,
     #[arg(long)]
     comment: u64,
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 }
 
@@ -403,11 +405,11 @@ pub fn error_exit(error: anyhow::Error) -> ExitCode {
         if failure.output == OutputMode::Json {
             eprintln!("{}", json_error_document(failure.kind, &failure.message));
         } else {
-            eprintln!("Koelu couldn't finish: {}", failure.message);
+            eprintln!("Drukal couldn't finish: {}", failure.message);
         }
         return ExitCode::from(failure.exit_code);
     } else {
-        eprintln!("Koelu couldn't finish: {error:#}");
+        eprintln!("Drukal couldn't finish: {error:#}");
     }
     ExitCode::FAILURE
 }
@@ -523,7 +525,7 @@ pub(crate) fn print_session(
         }
     }
     markdown.push_str(&format!(
-        "\nContinue with `koelu agent follow-up {} \"…\"`.\n",
+        "\nContinue with `drukal agent follow-up {} \"…\"`.\n",
         answer.id
     ));
     print_markdown(&markdown, theme)

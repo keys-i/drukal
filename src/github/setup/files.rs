@@ -17,7 +17,7 @@ const MAX_CONFIGURATION_BYTES: u64 = 64 * 1024;
 /// Validate CI names and remove duplicates while keeping their order
 ///
 /// ```
-/// use koelu::setup::checks;
+/// use drukal::setup::checks;
 ///
 /// assert_eq!(checks(&["test".into(), "lint".into(), "test".into()])?, ["test", "lint"]);
 /// assert!(checks(&[]).is_err());
@@ -26,7 +26,7 @@ const MAX_CONFIGURATION_BYTES: u64 = 64 * 1024;
 /// ```
 pub fn checks(values: &[String]) -> Result<Vec<String>> {
     if values.is_empty() || values.len() > 32 || values.iter().any(|value| !valid_check(value)) {
-        bail!("provide nonempty CI checks that do not name Koelu dependasolve itself");
+        bail!("provide nonempty CI checks that do not name Drukal dependasolve itself");
     }
     let mut seen = BTreeSet::new();
     Ok(values
@@ -40,22 +40,24 @@ fn valid_check(value: &str) -> bool {
     !value.trim().is_empty()
         && value.len() <= 200
         && !value.chars().any(char::is_control)
+        && !value.starts_with("Drukal dependasolve")
         && !value.starts_with("Koelu dependasolve")
+        && !value.starts_with("Koela dependasolve")
 }
 
 /// Prepare setup text without writing files or contacting GitHub
 ///
-/// Existing Dependabot files are preserved and Koelu’s configuration uses TOML
+/// Existing Dependabot files are preserved and Drukal’s configuration uses TOML
 /// Returned paths use the canonical repository directory
 ///
 /// ```
-/// use koelu::setup::{local_files, SourceRef};
+/// use drukal::setup::{local_files, SourceRef};
 ///
-/// # fn main() -> koelu::Result<()> {
+/// # fn main() -> drukal::Result<()> {
 /// let directory = tempfile::tempdir()?;
-/// let source = SourceRef::parse(&format!("keys-i/koelu@{}", "a".repeat(40)))?;
+/// let source = SourceRef::parse(&format!("keys-i/drukal@{}", "a".repeat(40)))?;
 /// let files = local_files(directory.path(), &source, &["test".into()], false)?;
-/// let path = directory.path().canonicalize()?.join(".github/koelu.toml");
+/// let path = directory.path().canonicalize()?.join(".github/drukal.toml");
 /// let config = toml::from_str::<toml::Value>(&files[&path])?;
 /// assert_eq!(config["source"].as_str(), Some(source.joined().as_str()));
 /// assert!(!path.exists());
@@ -78,7 +80,10 @@ pub(super) fn existing_configuration(directory: &Path) -> Result<Option<Value>> 
     if !root.is_dir() {
         bail!("--directory must be a directory");
     }
-    for (name, legacy) in [(".github/koelu.toml", false), (".github/koelu.json", true)] {
+    for (name, legacy) in [
+        (".github/drukal.toml", false),
+        (".github/drukal.json", true),
+    ] {
         let config = safe_path(&root, name)?;
         match fs::symlink_metadata(&config) {
             Ok(metadata) if metadata.file_type().is_file() => {
@@ -107,7 +112,7 @@ pub(super) fn refuse_existing_configuration(directory: &Path, overwrite: bool) -
     if !root.is_dir() {
         bail!("--directory must be a directory");
     }
-    for name in [".github/koelu.toml", ".github/koelu.json"] {
+    for name in [".github/drukal.toml", ".github/drukal.json"] {
         let config = safe_path(&root, name)?;
         match fs::symlink_metadata(&config) {
             Ok(_) => bail!(
@@ -141,7 +146,7 @@ pub(super) fn setup_files(
         configuration["agreement"] = agreement.clone();
     }
     let configuration = toml::to_string_pretty(&configuration)?;
-    let config = safe_path(&root, ".github/koelu.toml")?;
+    let config = safe_path(&root, ".github/drukal.toml")?;
     let mut files = BTreeMap::from([(config.clone(), configuration)]);
     let dependabot = [
         safe_path(&root, ".github/dependabot.yml")?,
@@ -170,7 +175,7 @@ pub(super) fn setup_files(
 fn read_configuration(path: &Path, metadata: &fs::Metadata) -> Result<String> {
     if metadata.len() > MAX_CONFIGURATION_BYTES {
         bail!(
-            "existing Koelu configuration is too large: {}",
+            "existing Drukal configuration is too large: {}",
             path.display()
         );
     }
@@ -314,9 +319,9 @@ mod tests {
 
     #[test]
     fn generated_configuration_overwrites_by_default_and_can_be_protected() -> Result<()> {
-        let source = SourceRef::parse(&format!("keys-i/koelu@{}", "b".repeat(40)))?;
+        let source = SourceRef::parse(&format!("keys-i/drukal@{}", "b".repeat(40)))?;
         let temporary = tempfile::tempdir()?;
-        let path = temporary.path().join(".github/koelu.toml");
+        let path = temporary.path().join(".github/drukal.toml");
         fs::create_dir_all(path.parent().expect("generated file parent"))?;
         fs::write(&path, "existing generated content\n")?;
         assert!(
@@ -326,7 +331,7 @@ mod tests {
         let files = local_files(temporary.path(), &source, &["test".into()], true)?;
         let generated = files
             .iter()
-            .find(|(candidate, _)| candidate.ends_with(".github/koelu.toml"))
+            .find(|(candidate, _)| candidate.ends_with(".github/drukal.toml"))
             .map(|(_, content)| content)
             .expect("generated configuration");
         write_setup_file(&path, generated.as_bytes(), true)?;
@@ -344,7 +349,7 @@ mod tests {
     #[test]
     fn existing_configuration_is_reused_only_when_it_is_parseable() -> Result<()> {
         let temporary = tempfile::tempdir()?;
-        let config = temporary.path().join(".github/koelu.toml");
+        let config = temporary.path().join(".github/drukal.toml");
         fs::create_dir_all(config.parent().expect("configuration parent"))?;
         for (content, expected) in [
             ("schema = 1\n[agreement]\nterms = \"2026-09-23\"\n", true),
@@ -359,7 +364,7 @@ mod tests {
         }
         assert!(refuse_existing_configuration(temporary.path(), false).is_err());
         assert!(refuse_existing_configuration(temporary.path(), true).is_ok());
-        let legacy = temporary.path().join(".github/koelu.json");
+        let legacy = temporary.path().join(".github/drukal.json");
         fs::write(&legacy, r#"{"schema":1}"#)?;
         assert!(existing_configuration(temporary.path())?.is_none());
         fs::remove_file(&config)?;
@@ -374,7 +379,7 @@ mod tests {
     #[test]
     fn generated_toml_preserves_consent_and_quoted_check_names() -> Result<()> {
         let temporary = tempfile::tempdir()?;
-        let source = SourceRef::parse(&format!("keys-i/koelu@{}", "a".repeat(40)))?;
+        let source = SourceRef::parse(&format!("keys-i/drukal@{}", "a".repeat(40)))?;
         let agreement = json!({
             "accepted_at_unix": 1790447725,
             "accepted_by": "keys-i",
@@ -394,7 +399,7 @@ mod tests {
         )?;
         let content = files
             .iter()
-            .find(|(path, _)| path.ends_with(".github/koelu.toml"))
+            .find(|(path, _)| path.ends_with(".github/drukal.toml"))
             .map(|(_, content)| content)
             .expect("generated TOML");
         let parsed: Value = toml::from_str(content)?;
@@ -410,7 +415,7 @@ mod tests {
             checks(&["test".into(), "lint".into(), "test".into()])?,
             ["test", "lint"]
         );
-        assert!(checks(&["Koelu dependasolve gate".into()]).is_err());
+        assert!(checks(&["Drukal dependasolve gate".into()]).is_err());
         Ok(())
     }
 

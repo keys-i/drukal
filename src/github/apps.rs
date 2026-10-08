@@ -5,7 +5,7 @@ use regex::Regex;
 use serde_json::{Value, json};
 
 pub const APP_OWNER: &str = "keys-i";
-pub const KOELU_SLUG: &str = "koelu";
+pub const DRUKAL_SLUG: &str = "drukal";
 
 pub fn permissions() -> Value {
     json!({
@@ -62,7 +62,7 @@ pub fn require_public_app(app: &Value, public: &Value) -> Result<()> {
         .filter(|id| *id > 0)
         .ok_or_else(|| anyhow!("App response has no identity"))?;
     if public["id"].as_u64() != Some(id) {
-        bail!("the App credentials do not belong to the public Koelu App");
+        bail!("the App credentials do not belong to the public Drukal App");
     }
     Ok(())
 }
@@ -75,7 +75,7 @@ pub fn require_app_identity(app: &Value, public: &Value, slug: &str) -> Result<(
         .as_str()
         .is_none_or(|actual| !actual.eq_ignore_ascii_case(slug))
     {
-        bail!("the App credentials do not belong to the configured Koelu App");
+        bail!("the App credentials do not belong to the configured Drukal App");
     }
     require_permissions(app)
 }
@@ -89,7 +89,7 @@ pub fn open_installation(slug: &str, repo: &str) -> Result<()> {
     github::validate_repository(repo)?;
     validate_slug(slug)?;
     let install = format!("https://github.com/apps/{slug}/installations/new");
-    eprintln!("Install Koelu with Only select repositories -> {repo}");
+    eprintln!("Install Drukal with Only select repositories -> {repo}");
     open_browser(&install);
     Ok(())
 }
@@ -135,7 +135,7 @@ mod tests {
         let command = browser_command("open", &[], "https://example.test");
         let environment = command.get_envs().collect::<BTreeMap<_, _>>();
         assert!(environment.contains_key(std::ffi::OsStr::new("PATH")));
-        assert!(!environment.contains_key(std::ffi::OsStr::new("KOELU_APP_PRIVATE_KEY")));
+        assert!(!environment.contains_key(std::ffi::OsStr::new("DRUKAL_APP_PRIVATE_KEY")));
     }
 
     #[test]
@@ -170,13 +170,13 @@ mod tests {
 
     #[test]
     fn app_identity_matches_public_lookup_without_visibility_field() -> Result<()> {
-        let mut app = json!({"id": 42, "permissions": permissions(), "owner": {"login": APP_OWNER}, "slug": KOELU_SLUG});
+        let mut app = json!({"id": 42, "permissions": permissions(), "owner": {"login": APP_OWNER}, "slug": DRUKAL_SLUG});
         let public = json!({"id": 42});
-        require_app_identity(&app, &public, KOELU_SLUG)?;
-        assert!(require_app_identity(&app, &json!({"id": 43}), KOELU_SLUG).is_err());
+        require_app_identity(&app, &public, DRUKAL_SLUG)?;
+        assert!(require_app_identity(&app, &json!({"id": 43}), DRUKAL_SLUG).is_err());
         app.as_object_mut().unwrap().remove("id");
-        assert!(require_app_identity(&app, &public, KOELU_SLUG).is_err());
-        assert!(validate_slug("Koelu").is_err());
+        assert!(require_app_identity(&app, &public, DRUKAL_SLUG).is_err());
+        assert!(validate_slug("Drukal").is_err());
         Ok(())
     }
 }

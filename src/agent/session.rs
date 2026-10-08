@@ -259,7 +259,7 @@ fn evaluate(
 }
 
 fn repository_private() -> Option<bool> {
-    match env::var("KOELU_REPOSITORY_PRIVATE").ok()?.as_str() {
+    match env::var("DRUKAL_REPOSITORY_PRIVATE").ok()?.as_str() {
         "true" => Some(true),
         "false" => Some(false),
         _ => None,

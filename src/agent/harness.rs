@@ -18,12 +18,12 @@ use super::{Harness, ProcessOutput, Usage};
 /// Find the installed harness and check its native login before running work
 pub fn executable(harness: Harness) -> Result<PathBuf> {
     if harness == Harness::Command {
-        let arguments = split_command(&env::var("KOELU_AGENT_COMMAND").unwrap_or_default())?;
+        let arguments = split_command(&env::var("DRUKAL_AGENT_COMMAND").unwrap_or_default())?;
         let first = arguments.first().ok_or_else(|| {
-            anyhow!("set KOELU_AGENT_COMMAND to an installed non-interactive agent command")
+            anyhow!("set DRUKAL_AGENT_COMMAND to an installed non-interactive agent command")
         })?;
         return which(first).ok_or_else(|| {
-            anyhow!("set KOELU_AGENT_COMMAND to an installed non-interactive agent command")
+            anyhow!("set DRUKAL_AGENT_COMMAND to an installed non-interactive agent command")
         });
     }
     let name = harness.as_str();
@@ -54,7 +54,7 @@ pub fn executable(harness: Harness) -> Result<PathBuf> {
         } else {
             "claude auth login"
         };
-        bail!("run {login} before using Koelu");
+        bail!("run {login} before using Drukal");
     }
     Ok(binary)
 }
@@ -129,7 +129,7 @@ pub fn command(
         bail!("coding directory must be a directory");
     }
     if !(1..=8).contains(&agents) {
-        bail!("use between 1 and 8 Koelu agents");
+        bail!("use between 1 and 8 Drukal agents");
     }
     let hf_model = huggingface_model(model)?;
     if hf_model.is_some() && harness != Harness::Codex {
@@ -334,8 +334,8 @@ pub fn run_cancellable(
     let command_environment = if harness == Harness::Command {
         command_environment(
             environment,
-            env::var("KOELU_COMMAND_ALLOW_GEMINI").as_deref() == Ok("1"),
-            env::var("KOELU_GEMINI_API_KEY").ok(),
+            env::var("DRUKAL_COMMAND_ALLOW_GEMINI").as_deref() == Ok("1"),
+            env::var("DRUKAL_GEMINI_API_KEY").ok(),
         )?
     } else {
         environment.clone()
@@ -383,9 +383,9 @@ const MAX_GEMINI_API_KEY_BYTES: usize = 1024;
 
 fn command_setting(read_only: bool) -> &'static str {
     if read_only {
-        "KOELU_REVIEW_COMMAND"
+        "DRUKAL_REVIEW_COMMAND"
     } else {
-        "KOELU_AGENT_COMMAND"
+        "DRUKAL_AGENT_COMMAND"
     }
 }
 
@@ -398,12 +398,12 @@ fn command_environment(
     environment.remove("GEMINI_API_KEY");
     if allow_gemini {
         let key = gemini_api_key
-            .ok_or_else(|| anyhow!("KOELU_COMMAND_ALLOW_GEMINI requires KOELU_GEMINI_API_KEY"))?;
+            .ok_or_else(|| anyhow!("DRUKAL_COMMAND_ALLOW_GEMINI requires DRUKAL_GEMINI_API_KEY"))?;
         if key.is_empty()
             || key.len() > MAX_GEMINI_API_KEY_BYTES
             || key.chars().any(char::is_control)
         {
-            bail!("KOELU_GEMINI_API_KEY is not safe to pass to the command harness");
+            bail!("DRUKAL_GEMINI_API_KEY is not safe to pass to the command harness");
         }
         environment.insert("GEMINI_API_KEY".to_owned(), key);
     }
@@ -416,7 +416,7 @@ fn command_environment(
 /// Unfinished quotes or escapes return an error
 ///
 /// ```
-/// use koelu::agent::split_command;
+/// use drukal::agent::split_command;
 ///
 /// assert_eq!(split_command("tool --name 'two words'")?, ["tool", "--name", "two words"]);
 /// assert!(split_command("tool 'unfinished").is_err());
@@ -655,8 +655,8 @@ mod tests {
     #[test]
     fn command_paths_and_gemini_forwarding_are_explicit() -> Result<()> {
         for (read_only, expected) in [
-            (false, "KOELU_AGENT_COMMAND"),
-            (true, "KOELU_REVIEW_COMMAND"),
+            (false, "DRUKAL_AGENT_COMMAND"),
+            (true, "DRUKAL_REVIEW_COMMAND"),
         ] {
             assert_eq!(command_setting(read_only), expected);
         }

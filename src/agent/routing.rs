@@ -51,7 +51,7 @@ pub enum Intent {
 /// Mixed requests that ask for an action need a write workflow
 ///
 /// ```
-/// use koelu::routing::{classify_request, Intent};
+/// use drukal::routing::{classify_request, Intent};
 ///
 /// assert_eq!(classify_request("How do I fix this failure?"), Intent::ReadOnly);
 /// assert_eq!(classify_request("Explain and fix this failure"), Intent::Write);
@@ -163,7 +163,7 @@ fn read_only_question(text: &str) -> bool {
 /// This uses supplied task data and does not contact a model provider
 ///
 /// ```
-/// use koelu::routing::{select, Tier};
+/// use drukal::routing::{select, Tier};
 /// use serde_json::json;
 ///
 /// assert_eq!(select(&json!({"request": "Summarize this"})), Tier::Fast);
@@ -271,7 +271,7 @@ fn scopes(evidence: &Value) -> impl Iterator<Item = &Value> {
 /// Without one, empty or repeated choices are rejected
 ///
 /// ```
-/// use koelu::routing::{model_choice, Tier};
+/// use drukal::routing::{model_choice, Tier};
 ///
 /// let choices = ["quick", "general", "careful"].map(str::to_owned);
 /// assert_eq!(model_choice(None, &choices, Tier::Deep)?, Some("careful"));

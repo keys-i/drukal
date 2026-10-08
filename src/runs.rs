@@ -17,8 +17,8 @@ use serde::de::DeserializeOwned;
 
 use crate::Result;
 
-const RUNS_DIRECTORY: &str = "KOELU_RUNS_DIR";
-const MEMORY_DIRECTORY: &str = "KOELU_MEMORY_DIR";
+const RUNS_DIRECTORY: &str = "DRUKAL_RUNS_DIR";
+const MEMORY_DIRECTORY: &str = "DRUKAL_MEMORY_DIR";
 const CANCELLED: &str = "cancelled";
 const MAX_LISTED_RUNS: usize = 100;
 
@@ -47,9 +47,9 @@ impl RunStore {
     /// Newly created directories are private to the current user
     ///
     /// ```
-    /// use koelu::runs::RunStore;
+    /// use drukal::runs::RunStore;
     ///
-    /// # fn main() -> koelu::Result<()> {
+    /// # fn main() -> drukal::Result<()> {
     /// let directory = tempfile::tempdir()?;
     /// let store = RunStore::at(directory.path())?;
     /// let run = store.create()?;
@@ -74,7 +74,7 @@ impl RunStore {
         }
         let metadata = fs::symlink_metadata(&root)?;
         if !metadata.is_dir() {
-            bail!("Koelu run root is not a directory: {}", root.display());
+            bail!("Drukal run root is not a directory: {}", root.display());
         }
         Ok(Self { root })
     }
@@ -93,14 +93,14 @@ impl RunStore {
                 Err(error) => return Err(error.into()),
             }
         }
-        bail!("could not allocate a unique Koelu run ID")
+        bail!("could not allocate a unique Drukal run ID")
     }
 
     pub fn load(&self, id: &str) -> Result<Run> {
         validate_id(id)?;
         let path = self.root.join(id);
         if !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir()) {
-            bail!("Koelu run does not exist: {id}");
+            bail!("Drukal run does not exist: {id}");
         }
         Ok(Run {
             id: id.to_owned(),
@@ -154,7 +154,7 @@ impl Run {
         let path = self.file(name)?;
         let metadata = fs::symlink_metadata(&path)?;
         if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 1_000_000 {
-            bail!("Koelu run JSON must be a regular file no larger than 1 MB");
+            bail!("Drukal run JSON must be a regular file no larger than 1 MB");
         }
         Ok(serde_json::from_slice(&fs::read(path)?)?)
     }
@@ -167,7 +167,7 @@ impl Run {
         let path = self.file(name)?;
         let metadata = fs::symlink_metadata(&path)?;
         if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 4_000_000 {
-            bail!("Koelu run text must be a regular file no larger than 4 MB");
+            bail!("Drukal run text must be a regular file no larger than 4 MB");
         }
         Ok(fs::read_to_string(path)?)
     }
@@ -179,7 +179,7 @@ impl Run {
     pub fn is_cancelled(&self) -> Result<bool> {
         match fs::symlink_metadata(self.file(CANCELLED)?) {
             Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(true),
-            Ok(_) => bail!("Koelu cancellation marker is not a regular file"),
+            Ok(_) => bail!("Drukal cancellation marker is not a regular file"),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error.into()),
         }
@@ -192,7 +192,7 @@ impl Run {
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
         {
             bail!(
-                "Koelu run file names may contain only letters, numbers, dots, underscores and hyphens"
+                "Drukal run file names may contain only letters, numbers, dots, underscores and hyphens"
             );
         }
         Ok(self.path.join(name))
@@ -212,7 +212,7 @@ fn memory_root() -> PathBuf {
         return PathBuf::from(root);
     }
     default_root().parent().map_or_else(
-        || env::temp_dir().join("koelu-memory"),
+        || env::temp_dir().join("drukal-memory"),
         |root| root.join("memory"),
     )
 }
@@ -225,20 +225,20 @@ where
         return PathBuf::from(root);
     }
     if let Some(root) = variable("XDG_STATE_HOME").filter(|value| !value.is_empty()) {
-        return PathBuf::from(root).join("koelu").join("runs");
+        return PathBuf::from(root).join("drukal").join("runs");
     }
     if let Some(home) = variable("HOME").filter(|value| !value.is_empty()) {
-        return PathBuf::from(home).join(".local/state/koelu/runs");
+        return PathBuf::from(home).join(".local/state/drukal/runs");
     }
     if let Some(root) = variable("LOCALAPPDATA").filter(|value| !value.is_empty()) {
-        return PathBuf::from(root).join("Koelu").join("runs");
+        return PathBuf::from(root).join("Drukal").join("runs");
     }
-    temporary.join("koelu-runs")
+    temporary.join("drukal-runs")
 }
 
 fn new_id() -> Result<String> {
     let mut bytes = [0_u8; 16];
-    fill(&mut bytes).map_err(|error| anyhow!("could not generate Koelu run ID: {error}"))?;
+    fill(&mut bytes).map_err(|error| anyhow!("could not generate Drukal run ID: {error}"))?;
     Ok(format!("run_{}", hex(&bytes)))
 }
 
@@ -251,7 +251,7 @@ fn validate_id(id: &str) -> Result<()> {
     {
         return Ok(());
     }
-    bail!("invalid Koelu run ID")
+    bail!("invalid Drukal run ID")
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -267,7 +267,7 @@ fn hex(bytes: &[u8]) -> String {
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = path
         .parent()
-        .ok_or_else(|| anyhow!("Koelu run file has no parent directory"))?;
+        .ok_or_else(|| anyhow!("Drukal run file has no parent directory"))?;
     for _ in 0..32 {
         let temporary = parent.join(format!(
             ".{}.tmp-{}",
@@ -296,7 +296,7 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
         }
         return outcome;
     }
-    bail!("could not allocate an atomic Koelu run write")
+    bail!("could not allocate an atomic Drukal run write")
 }
 
 #[cfg(target_os = "linux")]
@@ -404,10 +404,10 @@ mod tests {
     #[test]
     fn selects_override_without_mutating_process_environment() {
         let variables = BTreeMap::from([(
-            "KOELU_RUNS_DIR".to_owned(),
-            OsString::from("/custom/koelu-runs"),
+            "DRUKAL_RUNS_DIR".to_owned(),
+            OsString::from("/custom/drukal-runs"),
         )]);
         let root = root_from(|name| variables.get(name).cloned(), "/temporary".into());
-        assert_eq!(root, std::path::PathBuf::from("/custom/koelu-runs"));
+        assert_eq!(root, std::path::PathBuf::from("/custom/drukal-runs"));
     }
 }

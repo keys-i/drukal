@@ -1,10 +1,10 @@
-name: Koelu dependasolve
+name: Drukal dependasolve
 
 on:
   workflow_call:
     inputs:
       solver-ref:
-        description: Trusted solver source, keys-i/koelu@40-lowercase-hex SHA
+        description: Trusted solver source, keys-i/drukal@40-lowercase-hex SHA
         required: true
         type: string
       autofix:
@@ -35,7 +35,7 @@ on:
         type: string
         default: ''
       model-choices:
-        description: Comma-separated native models available to Koelu's local selector
+        description: Comma-separated native models available to Drukal's local selector
         type: string
         default: ''
       cloudflare-account-id:
@@ -86,7 +86,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: koelu-${{ inputs.repo }}-${{ inputs.pr-number }}
+  group: drukal-${{ inputs.repo }}-${{ inputs.pr-number }}
   cancel-in-progress: false
 
 jobs:
@@ -119,17 +119,17 @@ jobs:
           SOLVER_REF: ${{ inputs.solver-ref }}
         run: |
           set -euo pipefail
-          if [[ ! "$SOLVER_REF" =~ ^keys-i/koelu@([a-f0-9]{40})$ ]]; then
-            echo 'solver-ref must be keys-i/koelu@40_LOWERCASE_COMMIT_SHA' >&2
+          if [[ ! "$SOLVER_REF" =~ ^keys-i/drukal@([a-f0-9]{40})$ ]]; then
+            echo 'solver-ref must be keys-i/drukal@40_LOWERCASE_COMMIT_SHA' >&2
             exit 1
           fi
           echo "sha=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
       - name: Check out trusted workflow scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: keys-i/koelu
+          repository: keys-i/drukal
           ref: ${{ steps.source.outputs.sha }}
-          path: koelu-workflow-scripts
+          path: drukal-workflow-scripts
           sparse-checkout: .github/workflows/scripts
           persist-credentials: false
       - name: Validate pull request trust boundary
@@ -141,8 +141,8 @@ jobs:
           PRIVATE_REPOSITORY: ${{ inputs.repository-private }}
           PR_NUMBER: ${{ inputs.pr-number }}
         run: |
-          script=koelu-workflow-scripts/.github/workflows/scripts/trust.sh
-          [[ -f "$script" ]] || script=koelu-workflow-scripts/.github/workflows/scripts/pr-trust.sh
+          script=drukal-workflow-scripts/.github/workflows/scripts/trust.sh
+          [[ -f "$script" ]] || script=drukal-workflow-scripts/.github/workflows/scripts/pr-trust.sh
           bash "$script"
 
   review:
@@ -171,10 +171,10 @@ jobs:
         if: inputs.repository-private != true
         shell: bash
         env:
-          KOELU_HARNESS: ${{ inputs.harness }}
+          DRUKAL_HARNESS: ${{ inputs.harness }}
         run: |
           set -euo pipefail
-          case "$KOELU_HARNESS" in
+          case "$DRUKAL_HARNESS" in
             codex|claude) ;;
             *) echo 'Public repositories require the bounded Codex or Claude harness' >&2; exit 1 ;;
           esac
@@ -185,11 +185,11 @@ jobs:
           SOLVER_REF: ${{ inputs.solver-ref }}
         run: |
           set -euo pipefail
-          if [[ ! "$SOLVER_REF" =~ ^keys-i/koelu@([a-f0-9]{40})$ ]]; then
-            echo 'solver-ref must be keys-i/koelu@40_LOWERCASE_COMMIT_SHA' >&2
+          if [[ ! "$SOLVER_REF" =~ ^keys-i/drukal@([a-f0-9]{40})$ ]]; then
+            echo 'solver-ref must be keys-i/drukal@40_LOWERCASE_COMMIT_SHA' >&2
             exit 1
           fi
-          echo 'repository=keys-i/koelu' >> "$GITHUB_OUTPUT"
+          echo 'repository=keys-i/drukal' >> "$GITHUB_OUTPUT"
           echo "sha=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
       # Check out only the immutable solver source, never the PR or its scripts
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -201,11 +201,11 @@ jobs:
         id: binary
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: target/release/koelu
-          key: koelu-solver-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha }}
+          path: target/release/drukal
+          key: drukal-solver-${{ runner.os }}-${{ runner.arch }}-${{ steps.source.outputs.sha }}
       - name: Build the trusted solver
         if: steps.binary.outputs.cache-hit != 'true'
-        run: cargo build --release --locked --bin koelu
+        run: cargo build --release --locked --bin drukal
       - name: Resolve PR author and commit
         id: pr
         shell: bash
@@ -213,7 +213,7 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ inputs.repo }}
           PR_NUMBER: ${{ needs.preflight.outputs.number }}
-        run: target/release/koelu agent resolve --repo "$GH_REPO" --pr "$PR_NUMBER"
+        run: target/release/drukal agent resolve --repo "$GH_REPO" --pr "$PR_NUMBER"
       - name: Recheck pull request identity
         shell: bash
         env:
@@ -248,30 +248,30 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-          KOELU_MODEL: ${{ inputs.model }}
-          KOELU_MODEL_CHOICES: ${{ inputs.model-choices }}
-          KOELU_HARNESS: ${{ inputs.harness }}
-          KOELU_REPOSITORY_PRIVATE: ${{ inputs.repository-private }}
-          KOELU_GEMINI_API_KEY: ${{ secrets.gemini-api-key }}
-          KOELU_CEREBRAS_API_KEY: ${{ secrets.cerebras-api-key }}
-          KOELU_XAI_API_KEY: ${{ secrets.xai-api-key }}
-          KOELU_GROQ_API_KEY: ${{ secrets.groq-api-key }}
-          KOELU_CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
-          KOELU_CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare-account-id }}
-          KOELU_OPENROUTER_API_KEY: ${{ secrets.openrouter-api-key }}
-          KOELU_GEMINI_PRIVATE_OK: ${{ inputs.gemini-private-ok }}
-          KOELU_CEREBRAS_PRIVATE_OK: ${{ inputs.cerebras-private-ok }}
-          KOELU_XAI_PRIVATE_OK: ${{ inputs.xai-private-ok }}
-          KOELU_GROQ_PRIVATE_OK: ${{ inputs.groq-private-ok }}
-          KOELU_CLOUDFLARE_PRIVATE_OK: ${{ inputs.cloudflare-private-ok }}
-          KOELU_OPENROUTER_PRIVATE_OK: ${{ inputs.openrouter-private-ok }}
+          DRUKAL_MODEL: ${{ inputs.model }}
+          DRUKAL_MODEL_CHOICES: ${{ inputs.model-choices }}
+          DRUKAL_HARNESS: ${{ inputs.harness }}
+          DRUKAL_REPOSITORY_PRIVATE: ${{ inputs.repository-private }}
+          DRUKAL_GEMINI_API_KEY: ${{ secrets.gemini-api-key }}
+          DRUKAL_CEREBRAS_API_KEY: ${{ secrets.cerebras-api-key }}
+          DRUKAL_XAI_API_KEY: ${{ secrets.xai-api-key }}
+          DRUKAL_GROQ_API_KEY: ${{ secrets.groq-api-key }}
+          DRUKAL_CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
+          DRUKAL_CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare-account-id }}
+          DRUKAL_OPENROUTER_API_KEY: ${{ secrets.openrouter-api-key }}
+          DRUKAL_GEMINI_PRIVATE_OK: ${{ inputs.gemini-private-ok }}
+          DRUKAL_CEREBRAS_PRIVATE_OK: ${{ inputs.cerebras-private-ok }}
+          DRUKAL_XAI_PRIVATE_OK: ${{ inputs.xai-private-ok }}
+          DRUKAL_GROQ_PRIVATE_OK: ${{ inputs.groq-private-ok }}
+          DRUKAL_CLOUDFLARE_PRIVATE_OK: ${{ inputs.cloudflare-private-ok }}
+          DRUKAL_OPENROUTER_PRIVATE_OK: ${{ inputs.openrouter-private-ok }}
           GH_REPO: ${{ inputs.repo }}
           PR_NUMBER: ${{ needs.preflight.outputs.number }}
           REQUIRED_CHECKS: ${{ inputs.required-checks }}
           EXPECTED_HEAD: ${{ steps.pr-state.outputs.head }}
           UPDATE_TYPE: ${{ steps.pr.outputs.update_type }}
           MAINTAINER_CHANGES: ${{ steps.pr.outputs.maintainer_changes }}
-        run: target/release/koelu agent review --repo "$GH_REPO" --pr "$PR_NUMBER"
+        run: target/release/drukal agent review --repo "$GH_REPO" --pr "$PR_NUMBER"
       - name: Check whether a replacement is needed
         if: inputs.autofix == true && needs.preflight.outputs.dependency == 'true' && (inputs.repository-private != true || inputs.gemini-private-ok == true)
         id: repair-probe
@@ -283,7 +283,7 @@ jobs:
           EXPECTED_HEAD: ${{ steps.pr-state.outputs.head }}
           EXPECTED_BASE: ${{ steps.pr-state.outputs.base_sha }}
         run: |
-          target/release/koelu agent auto-repair --probe \
+          target/release/drukal agent auto-repair --probe \
             --repo "$GH_REPO" --pr "$PR_NUMBER" \
             --expected-head "$EXPECTED_HEAD" --expected-base "$EXPECTED_BASE"
       - name: Create repository-scoped repair token
@@ -318,18 +318,18 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ steps.repair-token.outputs.token }}
-          KOELU_GEMINI_API_KEY: ${{ secrets.gemini-api-key }}
-          KOELU_MODEL: ${{ inputs.model || 'flash-lite' }}
-          KOELU_MODEL_CHOICES: ${{ inputs.model-choices }}
-          KOELU_AGENT_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
-          KOELU_REVIEW_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
-          KOELU_COMMAND_ALLOW_GEMINI: '1'
+          DRUKAL_GEMINI_API_KEY: ${{ secrets.gemini-api-key }}
+          DRUKAL_MODEL: ${{ inputs.model || 'flash-lite' }}
+          DRUKAL_MODEL_CHOICES: ${{ inputs.model-choices }}
+          DRUKAL_AGENT_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
+          DRUKAL_REVIEW_COMMAND: bash ${{ github.workspace }}/.github/workflows/scripts/gemini.sh
+          DRUKAL_COMMAND_ALLOW_GEMINI: '1'
           GH_REPO: ${{ inputs.repo }}
           PR_NUMBER: ${{ needs.preflight.outputs.number }}
           EXPECTED_HEAD: ${{ steps.pr-state.outputs.head }}
           EXPECTED_BASE: ${{ steps.pr-state.outputs.base_sha }}
         run: |
-          target/release/koelu agent auto-repair \
+          target/release/drukal agent auto-repair \
             --repo "$GH_REPO" --pr "$PR_NUMBER" \
             --expected-head "$EXPECTED_HEAD" --expected-base "$EXPECTED_BASE" \
             --directory repair-target

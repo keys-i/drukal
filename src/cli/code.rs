@@ -30,7 +30,7 @@ pub(crate) struct CodeArgs {
     model: Option<String>,
 
     /// Assign task models from this fast-to-deep list, including hf:namespace/model
-    #[arg(long = "model-choice", action = clap::ArgAction::Append, env = "KOELU_MODEL_CHOICES", value_delimiter = ',')]
+    #[arg(long = "model-choice", action = clap::ArgAction::Append, env = "DRUKAL_MODEL_CHOICES", value_delimiter = ',')]
     model_choices: Vec<String>,
 
     #[arg(long)]
@@ -42,7 +42,7 @@ pub(crate) struct CodeArgs {
     #[arg(long, value_enum)]
     orchestrator_harness: Option<Harness>,
 
-    #[arg(long, value_enum, env = "KOELU_HARNESS", default_value = "codex")]
+    #[arg(long, value_enum, env = "DRUKAL_HARNESS", default_value = "codex")]
     harness: Harness,
 
     #[arg(long, default_value_t = 1)]
@@ -96,7 +96,7 @@ pub(crate) struct CodeArgs {
     #[arg(long, default_value_t = 1800)]
     timeout: u64,
 
-    /// Enable a named MCP server from .koelu/context.json for write tasks
+    /// Enable a named MCP server from .drukal/context.json for write tasks
     #[arg(long = "mcp", action = clap::ArgAction::Append)]
     mcp_servers: Vec<String>,
 

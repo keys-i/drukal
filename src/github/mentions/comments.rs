@@ -67,7 +67,7 @@ pub(crate) fn respond(
             )?)
         }
         Invocation::WriteRequest(_) | Invocation::Approve(_) => {
-            "Post the change request or approval in this PR’s **Conversation** tab with `@koelu[bot]`. I’ll prepare the change through the existing approval flow.".to_owned()
+            "Post the change request or approval in this PR’s **Conversation** tab with `@drukal`. I’ll prepare the change through the existing approval flow.".to_owned()
         }
     };
     let thread = source["in_reply_to_id"].as_u64().unwrap_or(comment);
@@ -117,7 +117,7 @@ mod tests {
             "pull_request_url": "https://api.github.com/repos/owner/repo/pulls/2",
             "author_association": "COLLABORATOR",
             "user": {"login": "maintainer"},
-            "body": "@koelu[bot]\nreview this line",
+            "body": "@drukal[bot]\nreview this line",
         });
         assert_eq!(
             trusted_review_prompt(&comment, "owner/repo", 2, 7)?

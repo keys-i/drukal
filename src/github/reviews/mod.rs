@@ -50,9 +50,12 @@ pub fn review_pr(
 ) -> Result<ReviewOutcome> {
     let slug = Regex::new(r"^[a-z0-9-]+$")?;
     if !slug.is_match(bot_slug)
-        || required
-            .iter()
-            .any(|name| name.trim().is_empty() || name.starts_with("Koelu dependasolve"))
+        || required.iter().any(|name| {
+            name.trim().is_empty()
+                || name.starts_with("Drukal dependasolve")
+                || name.starts_with("Koelu dependasolve")
+                || name.starts_with("Koela dependasolve")
+        })
     {
         bail!("selected App slug and valid external required checks are required");
     }
@@ -117,7 +120,9 @@ pub fn review_pr(
         model,
         INSTRUCTIONS
     ]))?);
-    let marker = format!("<!-- koelu-review-{} -->", hex(&fingerprint[..12]));
+    let signature = hex(&fingerprint[..12]);
+    let marker = format!("<!-- drukal-review-{signature} -->");
+    let previous_marker = format!("<!-- koelu-review-{signature} -->");
     let reviews = github.pages(&format!("pulls/{number}/reviews"), None)?;
     let login = format!("{bot_slug}[bot]");
     let own: Vec<_> = reviews
@@ -127,7 +132,7 @@ pub fn review_pr(
     if let Some(previous) = own.iter().find(|item| {
         item["body"]
             .as_str()
-            .is_some_and(|body| body.contains(&marker))
+            .is_some_and(|body| body.contains(&marker) || body.contains(&previous_marker))
             && item["commit_id"] == context["head"]
             && item["state"] != "DISMISSED"
     }) {
@@ -143,7 +148,7 @@ pub fn review_pr(
         reply["__typename"] == "IssueComment"
             && reply["body"]
                 .as_str()
-                .is_some_and(|body| body.contains(&marker))
+                .is_some_and(|body| body.contains(&marker) || body.contains(&previous_marker))
     }) {
         return Ok(ReviewOutcome {
             approved: false,

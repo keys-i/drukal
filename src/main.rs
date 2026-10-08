@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    match koelu::cli::run() {
+    match drukal::cli::run() {
         Ok(()) => ExitCode::SUCCESS,
-        Err(error) => koelu::cli::error_exit(error),
+        Err(error) => drukal::cli::error_exit(error),
     }
 }

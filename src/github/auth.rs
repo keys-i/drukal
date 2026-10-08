@@ -17,7 +17,7 @@ use crate::github::validate_repository;
 
 const APP_API_BASE: &str = "https://api.github.com/";
 const APP_API_TIMEOUT: Duration = Duration::from_secs(30);
-const HTTP_STATUS_MARKER: &str = "\nKOELU_HTTP_STATUS:";
+const HTTP_STATUS_MARKER: &str = "\nDRUKAL_HTTP_STATUS:";
 const MAX_APP_API_RESPONSE_BYTES: usize = 1_000_000;
 const MAX_APP_INSTALLATIONS: usize = 256;
 const MAX_INSTALLATION_SCAN: usize = 1_024;
@@ -37,7 +37,7 @@ pub(crate) fn mint_installation_tokens(
     installation_seed: usize,
 ) -> Result<Vec<String>> {
     if let Some(owner) = owner {
-        validate_repository(&format!("{owner}/koelu"))?;
+        validate_repository(&format!("{owner}/drukal"))?;
     }
     let key = app_signing_key(private_key_pem)?;
     let request = service_token_request(scope);
@@ -256,7 +256,7 @@ fn app_installation_ids(
         let complete = append_installation_page(&mut ids, &response)?;
         if ids.len() >= MAX_INSTALLATION_SCAN {
             eprintln!(
-                "Koelu found more than {MAX_INSTALLATION_SCAN} installations; rotating through the first {MAX_INSTALLATION_SCAN}"
+                "Drukal found more than {MAX_INSTALLATION_SCAN} installations; rotating through the first {MAX_INSTALLATION_SCAN}"
             );
             break;
         }
@@ -291,7 +291,7 @@ fn app_api(
     missing: bool,
     jwt: Option<&str>,
 ) -> Result<Option<Value>> {
-    let curl = agent::which("curl").ok_or_else(|| anyhow!("install curl to connect Koelu"))?;
+    let curl = agent::which("curl").ok_or_else(|| anyhow!("install curl to connect Drukal"))?;
     let payload = payload.map(serde_json::to_string).transpose()?;
     let arguments = app_api_arguments(method, endpoint, payload.as_deref(), jwt.is_some());
     let authorization = jwt.map(app_authorization).unwrap_or_default();
@@ -338,7 +338,7 @@ fn app_api_arguments(
         "--header".to_owned(),
         "X-GitHub-Api-Version: 2022-11-28".to_owned(),
         "--header".to_owned(),
-        "User-Agent: Koelu".to_owned(),
+        "User-Agent: Drukal".to_owned(),
     ];
     if authenticated {
         arguments.extend(["--header".to_owned(), "@-".to_owned()]);
@@ -381,18 +381,18 @@ fn app_api_response(code: i32, output: &str, missing: bool) -> Result<Option<Str
     }
     if code != 0 || !(200..300).contains(&status) {
         let message = match (code, status) {
-            (6, _) => "Koelu couldn't resolve api.github.com".to_owned(),
-            (7, _) => "Koelu couldn't connect to GitHub".to_owned(),
+            (6, _) => "Drukal couldn't resolve api.github.com".to_owned(),
+            (7, _) => "Drukal couldn't connect to GitHub".to_owned(),
             (28, _) => "GitHub took too long to respond".to_owned(),
             (63, _) => format!(
                 "GitHub returned more than {MAX_APP_API_RESPONSE_BYTES} bytes; narrow the request"
             ),
-            (_, 401) => "GitHub didn't accept Koelu's App credentials (401); check that the client ID and private key belong to the same App".to_owned(),
-            (_, 403) => "GitHub wouldn't allow this App request (403); check Koelu's permissions and installation".to_owned(),
-            (_, 404) => "GitHub couldn't find this App resource (404); check the Koelu installation".to_owned(),
+            (_, 401) => "GitHub didn't accept Drukal's App credentials (401); check that the client ID and private key belong to the same App".to_owned(),
+            (_, 403) => "GitHub wouldn't allow this App request (403); check Drukal's permissions and installation".to_owned(),
+            (_, 404) => "GitHub couldn't find this App resource (404); check the Drukal installation".to_owned(),
             (_, 429) => "GitHub's rate limit is full (429); try again after it resets".to_owned(),
             _ if status != 0 => format!("GitHub rejected the App request (HTTP {status})"),
-            _ => format!("Koelu couldn't reach GitHub (transport {code})"),
+            _ => format!("Drukal couldn't reach GitHub (transport {code})"),
         };
         bail!(message);
     }
@@ -511,14 +511,14 @@ mod tests {
             targets["permissions"].as_object().map(|value| value.len()),
             Some(4)
         );
-        let delivery = repository_token_request("koelu", InstallationTokenScope::Delivery);
-        let mentions = repository_token_request("koelu", InstallationTokenScope::Mentions);
-        assert_eq!(mentions["repositories"], serde_json::json!(["koelu"]));
+        let delivery = repository_token_request("drukal", InstallationTokenScope::Delivery);
+        let mentions = repository_token_request("drukal", InstallationTokenScope::Mentions);
+        assert_eq!(mentions["repositories"], serde_json::json!(["drukal"]));
         assert_eq!(mentions["permissions"]["contents"], "read");
         assert_eq!(
             delivery,
             serde_json::json!({
-                "repositories": ["koelu"],
+                "repositories": ["drukal"],
                 "permissions": {
                     "checks": "read",
                     "contents": "write",
@@ -619,7 +619,7 @@ mod tests {
             );
         }
 
-        let public_arguments = app_api_arguments("GET", "apps/koelu", None, false);
+        let public_arguments = app_api_arguments("GET", "apps/drukal", None, false);
         assert!(
             !public_arguments
                 .windows(2)
@@ -627,12 +627,12 @@ mod tests {
         );
         assert_eq!(
             public_arguments.last().map(String::as_str),
-            Some("https://api.github.com/apps/koelu")
+            Some("https://api.github.com/apps/drukal")
         );
 
         for (code, response, missing, expected) in [
-            (0, "[]\nKOELU_HTTP_STATUS:200", false, Some("[]")),
-            (22, "hidden\nKOELU_HTTP_STATUS:404", true, None),
+            (0, "[]\nDRUKAL_HTTP_STATUS:200", false, Some("[]")),
+            (22, "hidden\nDRUKAL_HTTP_STATUS:404", true, None),
         ] {
             assert_eq!(
                 app_api_response(code, response, missing)
@@ -641,10 +641,10 @@ mod tests {
                 expected
             );
         }
-        let error = app_api_response(22, "hidden\nKOELU_HTTP_STATUS:401", false)
+        let error = app_api_response(22, "hidden\nDRUKAL_HTTP_STATUS:401", false)
             .unwrap_err()
             .to_string();
-        assert!(error.contains("didn't accept Koelu's App credentials"));
+        assert!(error.contains("didn't accept Drukal's App credentials"));
         assert!(!error.contains("hidden"));
     }
 }
