@@ -25,19 +25,20 @@ jobs:
     outputs:
       tag: ${{ steps.release.outputs.tag_name }}
     steps:
-      - name: Require the central release token
-        env:
-          DRUKAL_RELEASE_TOKEN: ${{ secrets.DRUKAL_RELEASE_TOKEN || secrets.KOELU_RELEASE_TOKEN }}
-        run: |
-          if [[ -z "$DRUKAL_RELEASE_TOKEN" ]]; then
-            echo 'DRUKAL_RELEASE_TOKEN is missing from the central repository' >&2
-            exit 1
-          fi
+      - name: Create repository-scoped release App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DRUKAL_APP_CLIENT_ID || vars.KOELU_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DRUKAL_APP_PRIVATE_KEY || secrets.KOELU_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
       - name: Prepare release PR or publish merged release
         id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          token: ${{ secrets.DRUKAL_RELEASE_TOKEN || secrets.KOELU_RELEASE_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           target-branch: main
           config-file: tools/config/release.json
           manifest-file: tools/config/versions.json
@@ -56,13 +57,9 @@ jobs:
         id: release
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.DRUKAL_RELEASE_TOKEN || secrets.KOELU_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo 'DRUKAL_RELEASE_TOKEN is missing from the central repository' >&2
-            exit 1
-          fi
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "expected an exact vX.Y.Z release tag, got: $RELEASE_TAG" >&2
             exit 1

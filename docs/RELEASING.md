@@ -2,7 +2,7 @@
 
 Release Please opens the version PR. Check that `Cargo.toml`, `Cargo.lock`, `tools/config/versions.json` and `docs/CHANGELOG.md` agree before merging it.
 
-For the first Drukal release, complete the repository, App and credential cutover in the [upgrade guide](UPGRADING.md). The renamed crate, App and repository are not created by changing this checkout
+The repository and GitHub App are registered as Drukal. See the [upgrade guide](UPGRADING.md) for installed repositories and earlier credentials
 
 ## Before merging
 
@@ -19,7 +19,9 @@ cargo build --release --locked
 
 Review the package contents before publication with `cargo package --list --locked`. The manifest uses directory patterns so new modules, tests, workflow scripts and assets are included without adding a line for each file.
 
-The central repository needs `DRUKAL_RELEASE_TOKEN` for Release Please and `CARGO_REGISTRY_TOKEN` for crates.io. Keep both in `keys-i/drukal`. Installed repositories do not need release credentials.
+Release Please uses the existing Drukal App credentials to create a short-lived token scoped to this repository, with Contents, Issues and Pull requests write access. It does not need a personal release token. The publication job uses GitHub's read-only workflow token to validate the release
+
+Automated crates.io publication needs `CARGO_REGISTRY_TOKEN` in `keys-i/drukal`. A maintainer can publish the first crate using an existing local Cargo login, then run the recovery workflow to verify it. Installed repositories do not need release credentials
 
 Merging the release PR lets the Release workflow create the tag and GitHub release, then publish the matching crate. Keep the Homebrew formula aligned with that tag. Update installed repositories’ solver pins separately when they should use the new code.
 

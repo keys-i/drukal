@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.3 — unreleased
+## [0.7.3](https://github.com/keys-i/drukal/compare/v0.7.2...v0.7.3) (2026-10-09)
 
 - Rename the product, crate, CLI, configuration, environment variables, Homebrew formula and poster to Drukal
 - Accept both `@drukal` and `@drukal[bot]`, and preserve earlier request receipts during the rename
@@ -8,6 +8,7 @@
 - Keep request receipts and review approvals intact when replies change
 - Start PR review and opted-in Dependabot repair from trusted PR mentions
 - Check App push access through Git instead of requiring user-only repository permissions
+- Use the existing Drukal App for repository-scoped GitHub release automation
 
 ## [0.7.2](https://github.com/keys-i/koelu/compare/v0.7.1...v0.7.2) (2026-09-29)
 

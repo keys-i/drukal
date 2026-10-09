@@ -17,7 +17,7 @@ Drukal takes inspiration from the Australian dropbear and the [Kalij pheasant of
 
 ## Install
 
-Until the first Drukal release, build a checkout using the instructions below. Cargo and Homebrew installation become available after that release
+Install Drukal with Cargo
 
 ```sh
 cargo install drukal --locked

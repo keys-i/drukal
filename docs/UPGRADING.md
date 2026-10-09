@@ -4,14 +4,7 @@ Drukal replaces Koelu and the unpublished Koela rename. Earlier names were Pekin
 
 ## Install the new CLI
 
-Build this checkout until the first Drukal release is published
-
-```sh
-cargo build --release --locked
-target/release/drukal --help
-```
-
-After that release, install with Cargo or Homebrew
+Install Drukal with Cargo or Homebrew
 
 ```sh
 cargo install drukal --locked
