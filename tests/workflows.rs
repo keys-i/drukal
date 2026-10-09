@@ -5,6 +5,7 @@ use std::process::Command;
 
 const SOLVE: &str = include_str!("../.github/workflows/solve.yml");
 const ORCHESTRATE: &str = include_str!("../.github/workflows/orchestrate.yml");
+const CREDENTIALS: &str = include_str!("../.github/workflows/credentials.yml");
 
 fn run_block(workflow: &str, step: &str) -> String {
     let section = workflow
@@ -13,10 +14,52 @@ fn run_block(workflow: &str, step: &str) -> String {
         .1;
     let run = section.split_once("        run: |\n").unwrap().1;
     run.lines()
-        .take_while(|line| line.starts_with("          "))
-        .map(|line| line.strip_prefix("          ").unwrap())
+        .take_while(|line| line.is_empty() || line.starts_with("          "))
+        .map(|line| line.strip_prefix("          ").unwrap_or(line))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn credential_checks_reject_failed_auth_without_disclosing_responses() -> drukal::Result<()> {
+    let source = run_block(CREDENTIALS, "Check provider credentials");
+    let python = source
+        .strip_prefix("python3 - <<'PY'\n")
+        .unwrap()
+        .strip_suffix("\nPY")
+        .unwrap();
+    let script = format!(
+        r#"import json
+from unittest.mock import patch
+namespace = {{"__name__": "credential_test"}}
+exec({}, namespace)
+check = namespace["check"]
+with patch("http.client.HTTPSConnection") as connection:
+    response = connection.return_value.getresponse.return_value
+    for host, status, body, expected in [
+        ("api.groq.com", 200, {{"data": []}}, "valid"),
+        ("api.groq.com", 401, {{"error": "private response"}}, "HTTP 401"),
+        ("api.groq.com", 200, {{"error": "private response"}}, "invalid response"),
+        ("api.cloudflare.com", 200, {{"success": True, "result": {{"status": "active"}}}}, "valid"),
+        ("api.cloudflare.com", 200, {{"success": True, "result": {{"status": "expired"}}}}, "inactive token"),
+        ("api.cloudflare.com", 200, {{"success": False, "result": None}}, "invalid response"),
+    ]:
+        response.status = status
+        response.read.return_value = json.dumps(body).encode()
+        assert check(host, "/models", "private-key") == expected
+        assert connection.return_value.close.called
+    connection.return_value.request.side_effect = OSError("private response")
+    assert check("api.groq.com", "/models", "private-key") == "network error"
+assert check("api.groq.com", "/models", "") == "missing"
+assert check("api.groq.com", "/models", "private-key\r\ninjected") == "invalid key format"
+"#,
+        serde_json::to_string(python)?
+    );
+    let output = Command::new("python3").args(["-c", &script]).output()?;
+    assert!(output.status.success(), "credential self-check failed");
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+    Ok(())
 }
 
 #[test]
