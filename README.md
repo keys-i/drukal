@@ -124,6 +124,8 @@ drukal agent follow-up RUN_ID "which failure should I fix first?"
 
 Use `drukal runs`, `inspect`, `cancel`, `resume` and `apply` to find and control your work. Drukal can load repository guidance, skills and MCP servers. Terminal reports support Markdown, mathematics and accessible themes.
 
+The terminal keeps each task in your scrollback, with a small duck greeting and gentle activity dots while it works. Try `--theme dawn`, `moss`, `tide` or `dusk` for accents from your terminal palette, or `--theme plain` for unstyled output. Set `DRUKAL_REDUCED_MOTION=1` to keep colours without animation, or `NO_COLOR=1` to remove both. JSON mode emits one document without progress messages
+
 Your request and the applicable `AGENTS.md` set the task, tone and format. Planners and reviewers read files. Workers edit and run checks. Workers cannot commit, publish or send messages. Drukal handles approved publication after checking the result. You can read the instructions for [planning and review](src/delivery/quality.rs), [workers](src/delivery/run.rs), [mentions](src/github/mentions/mod.rs) and [PR reviews](src/github/reviews/model.rs).
 
 ## Model choices

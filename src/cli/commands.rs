@@ -25,7 +25,7 @@ use super::{
 
 pub(super) fn doctor(arguments: DoctorArgs, theme: Theme, output: OutputMode) -> Result<()> {
     let mut ui = Ui::new(theme, output, 3);
-    ui.title("Drukal doctor", "Check what's ready on this machine");
+    ui.title("Machine check", "Check what's ready on this machine");
     let mut rows = Vec::new();
     let mut ready = true;
     for name in ["git", "gh"] {

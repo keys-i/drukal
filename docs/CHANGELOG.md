@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Give terminal runs a small duck greeting, readable task history and gentle activity dots instead of scrambled text
+- Use terminal palette colours and keep reduced-motion, plain and JSON modes quiet
+- Add manual GitHub App and provider authentication checks without disclosing credentials or provider responses
+
 ## [0.7.3](https://github.com/keys-i/drukal/compare/v0.7.2...v0.7.3) (2026-10-09)
 
 - Rename the product, crate, CLI, configuration, environment variables, Homebrew formula and poster to Drukal

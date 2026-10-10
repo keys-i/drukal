@@ -147,7 +147,7 @@ pub(super) fn deliver_with_auth(
     };
     run.persist()?;
     run.ui
-        .title("Drukal", "Turn a request into a checked change");
+        .title("Your coding run", "Turn a request into a checked change");
     run.ui.note(&format!(
         "Run {}. Stop it with `drukal cancel {}`",
         run.stored.id(),

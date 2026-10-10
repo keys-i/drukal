@@ -14,7 +14,7 @@ use super::{DependSolveArgs, SetupArgs};
 pub(super) fn setup(mut arguments: SetupArgs, theme: Theme, output: OutputMode) -> Result<()> {
     let mut ui = Ui::new(theme, output, 7);
     ui.title(
-        "Drukal setup",
+        "Connect a repository",
         "Connect this repository without copying secrets into it",
     );
     ui.stage("Finding the repository");
@@ -137,7 +137,7 @@ pub(super) fn dependasolve(
 ) -> Result<()> {
     let mut ui = Ui::new(theme, output, 3);
     ui.title(
-        "Drukal dependasolve",
+        "Dependency review setup",
         "Review dependency updates with the checks you trust",
     );
     ui.stage("Finding Drukal's source");

@@ -1,7 +1,6 @@
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use std::sync::atomic::Ordering;
 
 use super::report::{base64, markdown_html};
 use super::*;
@@ -90,32 +89,28 @@ fn terminal_markup_supports_emphasis_and_underline() {
 }
 
 #[test]
-fn typing_boundaries_keep_unicode_scalars_intact() {
-    let label = "duck 🦆 ready";
-    for (visible, expected) in [(0, ""), (1, "d"), (6, "duck 🦆"), (99, label)] {
-        assert_eq!(&label[..scalar_boundary(label, visible)], expected);
-    }
-}
-
-#[test]
-fn decoding_phases_replace_every_unsettled_position() {
-    let stage = StageLine {
-        accent: "36",
-        current: 2,
-        total: 7,
-        determinate: true,
-        label: "duck".into(),
-    };
-    let mut previous = None;
-    for (phase, expected) in [(0, "%+~"), (1, "&=@"), (2, "*?#")] {
-        assert!(expected.chars().all(|glyph| glyph.is_ascii_graphic()));
+fn progress_keeps_full_labels_and_does_not_claim_early_completion() {
+    let label = "Checking 🦆 dependencies and a long 日本語 file name";
+    for determinate in [true, false] {
+        let mut ui = Ui::new(Theme::Dusk, OutputMode::Human, 3);
+        ui.current = 3;
+        ui.determinate = determinate;
         let mut output = Vec::new();
-        Ui::write_stage_line_locked(&mut output, &stage, 1, Some(phase), false, false);
+        ui.write_stage(&mut output, label);
         let output = String::from_utf8(output).unwrap();
-        assert!(output.contains(&format!("d\x1b[36m{expected}\x1b[0m")));
-        assert!(!output.contains("uck"));
-        assert_ne!(previous, Some(expected));
-        previous = Some(expected);
+        assert!(output.ends_with(&format!("{label}\n")));
+        assert!(!output.contains('✓'));
+        assert_eq!(output.contains("3/3"), determinate);
+    }
+    for frame in 0..8 {
+        let mut output = Vec::new();
+        write_activity(&mut output, "35", frame);
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.ends_with("  Working"));
+        assert!(!output.contains('\n'));
+        assert!(!output.contains("\x1b[5;"));
+        assert_eq!(output.chars().filter(|glyph| *glyph == '●').count(), 1);
+        assert_eq!(output.chars().filter(|glyph| *glyph == '·').count(), 2);
     }
 }
 
@@ -140,16 +135,7 @@ fn progress_worker_joins_and_noninteractive_modes_stay_instant() {
     }
 
     let ui = Ui::new(Theme::Plain, OutputMode::Human, 2);
-    let (stop, stopped) = mpsc::channel();
-    let joined = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let worker_joined = Arc::clone(&joined);
-    let worker = thread::spawn(move || {
-        let _ = stopped.recv();
-        worker_joined.store(true, Ordering::Release);
-    });
-    *ui.animation
-        .lock()
-        .unwrap_or_else(|error| error.into_inner()) = Some(TypingAnimation { stop, worker });
+    assert!(ui.start_animation());
     assert!(
         ui.animation
             .lock()
@@ -157,36 +143,11 @@ fn progress_worker_joins_and_noninteractive_modes_stay_instant() {
             .is_some()
     );
     ui.finish_progress();
-    assert!(joined.load(Ordering::Acquire));
     assert!(
         ui.animation
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .is_none()
-    );
-}
-
-#[test]
-fn final_progress_stages_are_immediate_and_closed() {
-    let stage = StageLine {
-        accent: "36",
-        current: 7,
-        total: 7,
-        determinate: true,
-        label: "Ready to review".into(),
-    };
-    assert_eq!(
-        stage_render_state(&stage, true),
-        (usize::MAX, false, true, false)
-    );
-    let active = StageLine {
-        current: 3,
-        ..stage
-    };
-    assert_eq!(stage_render_state(&active, true), (0, false, false, true));
-    assert_eq!(
-        stage_render_state(&active, false),
-        (usize::MAX, false, false, false)
     );
 }
 

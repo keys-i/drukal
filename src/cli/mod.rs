@@ -29,7 +29,8 @@ use setup::{dependasolve, setup as setup_repository};
 #[command(
     name = "drukal",
     version,
-    about = "Human-first, evidence-gated coding and dependency review",
+    about = "Checked coding changes and dependency reviews",
+    before_help = "  (o>  Drukal\n  / )  A little company for your code\n  ^^",
     disable_help_subcommand = true,
     after_help = "Examples:\n  drukal setup\n  drukal code \"add structured logging\" --check test\n  drukal agent ask \"why is this test failing?\"\n  drukal dependasolve --repo owner/repo --check test --apply"
 )]
