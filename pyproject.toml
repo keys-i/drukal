@@ -1,0 +1,5 @@
+[tool.ruff]
+cache-dir = ".cache/ruff"
+
+[tool.pytest.ini_options]
+cache_dir = ".cache/pytest"
